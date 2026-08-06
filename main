@@ -158,28 +158,23 @@
   .row-btn.save{background:var(--teal); color:#fff;}
   .row-btn.delete{background:var(--red); color:#fff;}
   .row-btn.cancel{background:#eee6d2; color:#7a7362;}
-  .quick-type-toggle{display:flex; gap:10px; margin-bottom:14px;}
-  .type-toggle-btn{
-    flex:1; padding:10px; border:2px solid var(--line); border-radius:8px; background:#fdfcf6;
-    font-family:'Noto Sans TC',sans-serif; font-size:14px; font-weight:700; cursor:pointer; color:#7a7362;
-    transition:all 0.15s;
+  .rebal-action-list{margin-bottom:16px;}
+  .rebal-action-item{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:10px 14px; border-radius:8px; margin-bottom:8px; font-size:13px;
   }
-  .type-toggle-btn.active[id="qeTypeExpenseBtn"]{border-color:var(--red); background:#f8ece8; color:var(--red);}
-  .type-toggle-btn.active[id="qeTypeIncomeBtn"]{border-color:var(--teal); background:#e3f1ef; color:var(--teal);}
-  .qe-feedback{
-    margin-top:14px; border-radius:8px; padding:16px; animation:qeFadeIn 0.3s ease;
-  }
-  .qe-feedback.brake{background:#f8ece8; border:1px solid var(--red);}
-  .qe-feedback.accel{background:#e3f1ef; border:1px solid var(--teal);}
-  .qe-feedback .qe-headline{font-size:15px; font-weight:900; margin-bottom:8px;}
-  .qe-feedback.brake .qe-headline{color:var(--red);}
-  .qe-feedback.accel .qe-headline{color:var(--teal);}
-  .qe-feedback .qe-line{font-size:12px; color:var(--ink); margin-bottom:4px; line-height:1.6;}
-  .qe-gauge-track{height:10px; background:#eee6d2; border-radius:5px; overflow:hidden; margin:10px 0; position:relative;}
-  .qe-gauge-fill{height:100%; border-radius:5px;}
-  .qe-gauge-fill.brake{background:var(--red);}
-  .qe-gauge-fill.accel{background:var(--teal);}
-  @keyframes qeFadeIn{from{opacity:0; transform:translateY(-6px);} to{opacity:1; transform:translateY(0);}}
+  .rebal-action-item.buy{background:#e3f1ef; border-left:3px solid var(--teal);}
+  .rebal-action-item.sell{background:#f8ece8; border-left:3px solid var(--red);}
+  .rebal-action-item .ra-name{font-weight:700; color:var(--navy);}
+  .rebal-action-item .ra-amount{font-family:'Space Mono',monospace; font-weight:700;}
+  .rebal-action-item.buy .ra-amount{color:var(--teal);}
+  .rebal-action-item.sell .ra-amount{color:var(--red);}
+  .rebal-all-ok{font-size:13px; color:#7a7362; padding:10px 0;}
+  .gauge-row{display:flex; flex-wrap:wrap; gap:16px; margin-bottom:16px; justify-content:center;}
+  .gauge-box{text-align:center; min-width:200px;}
+  .gauge-box .gauge-label{font-size:12px; color:#7a7362; font-weight:700; margin-top:4px;}
+  .gauge-box .gauge-value{font-family:'Space Mono',monospace; font-size:22px; font-weight:900; margin-top:2px;}
+  .gauge-box .gauge-status{font-size:11px; margin-top:2px; font-weight:700;}
   footer{max-width:920px; margin:20px auto; padding:0 16px; font-size:11px; color:#9a927c; text-align:center;}
 </style>
 </head>
@@ -189,9 +184,12 @@
   <h1>資產配置儀表板</h1>
   <p>股票 / 債券 / 現金 兩層式配置象限 &nbsp;·&nbsp; 交易登記自動抓價 &nbsp;·&nbsp; 再平衡輔助</p>
   <button class="demo-btn" onclick="loadDemoData()">載入範例資料預覽</button>
+  <button class="demo-btn" style="background:var(--teal-soft); color:var(--navy-deep);" onclick="promptForToken()">🔑 設定/更新權杖</button>
 </header>
 
 <div class="wrap">
+
+  <div class="demo-banner" id="tokenBanner" style="display:flex; align-items:center; justify-content:space-between; gap:10px;"></div>
 
   <div class="demo-banner" id="demoBanner">📊 目前顯示的是<b>範例資料</b>,不是你真實的持股。設定好 Sheet 網址並按「重新整理」後,會換成你的真實資料。</div>
 
@@ -244,8 +242,10 @@
       <b>依據《投資金律 The Four Pillars of Investing》的再平衡原則:</b><br>
       1. 再平衡是紀律,不是預測 —— 定期(建議每年至少一次)把配置拉回目標,而不是猜測市場高低點。<br>
       2. 用「5/25 法則」判斷要不要動作:當某細項的實際比重,偏離目標<b>超過 5 個百分點</b>,<b>或超過目標值的 25%</b>(取較嚴格者),才需要再平衡 —— 避免為了小幅波動而過度交易、產生不必要的稅務與手續費成本。<br>
-      3. 再平衡本質是「賣掉表現好的、買進落後的」,反直覺但長期能維持你設定的風險水準,不會讓某一類資產因為漲多了而佔比失控。
+      3. 再平衡本質是「賣掉表現好的、買進落後的」,反直覺但長期能維持你設定的風險水準,不會讓某一類資產因為漲多了而佔比失控。<br>
+      4. 加碼/減碼的金額 = 總資產 × 目標% − 目前金額。5/25法則只是用來判斷「要不要顯示為需要動作」,金額本身固定用這個公式計算。
     </div>
+    <div id="rebalActionList"></div>
     <table>
       <thead><tr><th>細項</th><th>目前市值</th><th>目前%</th><th>目標%</th><th>容許區間</th><th>狀態</th><th>建議動作</th></tr></thead>
       <tbody id="rebalBody"></tbody>
@@ -358,26 +358,7 @@
   <div id="tab-finance" class="tab-panel" style="display:none;">
 
   <div class="card">
-    <div class="section-title"><span class="num">01</span> 記一筆收支(即時回饋)</div>
-    <div class="info-box">
-      每次記一筆消費或收入,馬上告訴你這筆帳對「資產成長速率」的影響——花錢是踩煞車、收入是踩油門,讓你記帳當下就有感覺,不用等月底才知道。
-    </div>
-    <div class="quick-type-toggle">
-      <button type="button" class="type-toggle-btn active" id="qeTypeExpenseBtn" onclick="setQuickEntryType('支出')">🛑 支出</button>
-      <button type="button" class="type-toggle-btn" id="qeTypeIncomeBtn" onclick="setQuickEntryType('收入')">🚀 收入</button>
-    </div>
-    <form class="tx-form" id="quickEntryForm" onsubmit="return submitQuickEntry(event)">
-      <div class="field"><label>金額</label><input type="number" id="qeAmount" step="1" min="1" placeholder="例如 350" required></div>
-      <div class="field"><label>類別</label><input type="text" id="qeCategory" placeholder="例如 餐飲 / 交通 / 薪資"></div>
-      <div class="field"><label>備註(選填)</label><input type="text" id="qeNote" placeholder="例如 午餐"></div>
-      <div class="field"><button type="submit" class="submit-btn" id="qeSubmitBtn">🛑 記一筆支出</button></div>
-    </form>
-    <div class="status-msg" id="qeStatus"></div>
-    <div id="qeFeedback"></div>
-  </div>
-
-  <div class="card">
-    <div class="section-title"><span class="num">02</span> 現金流量(來自 Money Manager 匯出)</div>
+    <div class="section-title"><span class="num">01</span> 現金流量(來自 Money Manager 匯出)</div>
     <div class="summary-row" id="cashflowSummary" style="margin-bottom:16px;"></div>
     <div style="margin-bottom:8px; font-size:12px; color:#7a7362; font-weight:700;">累積結餘趨勢</div>
     <div id="cumulativeChart" style="margin-bottom:20px;"></div>
@@ -386,14 +367,16 @@
   </div>
 
   <div class="card">
-    <div class="section-title"><span class="num">03</span> 財富自由指標</div>
+    <div class="section-title"><span class="num">02</span> 財富自由指標</div>
     <div class="info-box">
       <b>算法說明:</b><br>
       1. <b>資產累積斜率</b> —— 優先用「資產快照歷史」的月度總資產做線性迴歸(真實反映市場漲跌);快照筆數不足 2 筆時,才暫用現金流量的「累積結餘」當代理指標(只反映儲蓄速度,不含市場報酬)。<br>
       2. <b>FIRE 目標資產</b> —— 用 4% 法則:年金額 ÷ 4% = 需要的資產規模。這裡同時給你兩個版本:「依支出」是你財務自由後要覆蓋生活費所需的資產;「依儲蓄」是把你目前的月均結餘能力換算成等值資產規模(比較少見的算法,給你自己比較用)。<br>
       3. <b>財富自由比率</b> = 你目前的總資產 ÷ FIRE 目標資產,100% 代表已達成。<br>
-      4. <b>所得替代率</b> = (目前總資產 × 4%) ÷ 你的年化收入。意思是「如果現在退休、每年只從資產提領4%,這筆錢能替代你目前收入的百分之多少」——這是退休規劃常用的指標,100% 代表資產已經能完全取代你目前的收入水準。
+      4. <b>所得替代率</b> = (目前總資產 × 4%) ÷ 你的年化收入。意思是「如果現在退休、每年只從資產提領4%,這筆錢能替代你目前收入的百分之多少」——這是退休規劃常用的指標,100% 代表資產已經能完全取代你目前的收入水準。<br>
+      5. 下面兩個儀表:紅色(&lt;50%)= 危險,離目標還很遠;黃色(50%~90%)= 注意,持續累積中;綠色(≥90%)= 安全,已經達成或接近目標。
     </div>
+    <div class="gauge-row" id="fiGaugeRow"></div>
     <div class="summary-row" id="fiSummary" style="margin-bottom:14px;"></div>
     <table>
       <thead><tr><th></th><th>依月均支出</th><th>依月均淨結餘</th></tr></thead>
@@ -420,10 +403,32 @@
 <script>
 // ============ 設定區 ============
 const SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwQZ233hg9vuEvqWI1d60kj5q7K7DTi_BwaQGHZ_Br0cdLaDtbGLpGl3NWX2MhYUyNgOw/exec"; // 已填入你部署的網址
-// 安全性權杖:請自訂一組隨機字串(例如用密碼產生器產生 20+ 字元),
-// 並且要跟 Apps Script 程式碼裡的 SECRET_TOKEN 完全一致。
-// 這個網址+權杖等同於你的資產資料密碼,請勿分享給不信任的人或貼到公開網頁。
-const SECRET_TOKEN = "";
+
+// 安全性權杖:不寫死在檔案裡,改成存在「你這台裝置瀏覽器」的 localStorage。
+// 這樣就算這個 HTML 檔案被公開發布(例如放上 GitHub Pages),檔案本身也不含任何機密——
+// 權杖只存在於你自己輸入過的瀏覽器裡,其他人打開同一個網址不會自動拿到你的權杖。
+let SECRET_TOKEN = localStorage.getItem('assetDashboardToken') || '';
+
+function promptForToken(){
+  const input = prompt('請輸入你的安全性權杖(跟 Apps Script 指令碼屬性裡的 SECRET_TOKEN 完全一致):', SECRET_TOKEN);
+  if(input !== null){
+    SECRET_TOKEN = input.trim();
+    localStorage.setItem('assetDashboardToken', SECRET_TOKEN);
+    updateTokenBanner();
+    loadAll();
+  }
+}
+
+function updateTokenBanner(){
+  const el = document.getElementById('tokenBanner');
+  if(!el) return;
+  if(!SECRET_TOKEN){
+    el.style.display = 'flex';
+    el.innerHTML = `⚠️ 尚未設定安全性權杖,無法讀取真實資料。<button class="row-btn save" onclick="promptForToken()">設定權杖</button>`;
+  } else {
+    el.style.display = 'none';
+  }
+}
 
 const CATEGORY_TREE = {
   "股票": ["美股核心","台股核心","主題衛星","區域型"],
@@ -912,87 +917,6 @@ async function deleteTx(row){
   }
 }
 
-let quickEntryType = '支出';
-
-function setQuickEntryType(type){
-  quickEntryType = type;
-  document.getElementById('qeTypeExpenseBtn').classList.toggle('active', type==='支出');
-  document.getElementById('qeTypeIncomeBtn').classList.toggle('active', type==='收入');
-  document.getElementById('qeSubmitBtn').textContent = type==='支出' ? '🛑 記一筆支出' : '🚀 記一筆收入';
-}
-
-function validAmount(a){
-  const n = Number(a);
-  return !isNaN(n) && n > 0 && n < 10000000;
-}
-
-async function submitQuickEntry(evt){
-  evt.preventDefault();
-  const statusEl = document.getElementById('qeStatus');
-  const feedbackEl = document.getElementById('qeFeedback');
-  const amountVal = document.getElementById('qeAmount').value;
-  const categoryVal = document.getElementById('qeCategory').value.trim() || '未分類';
-  const noteVal = document.getElementById('qeNote').value.trim();
-
-  if(!validAmount(amountVal)){
-    statusEl.textContent = '金額必須是大於 0 的數字。';
-    statusEl.style.color = 'var(--red)';
-    return false;
-  }
-  const amount = Number(amountVal);
-  const today = new Date();
-  const dateStr = today.toISOString().slice(0,10);
-  const monthStr = dateStr.slice(0,7);
-
-  // ---- 計算「前後對比」的即時回饋(用現有 monthlyCashflow 做估算,實際數字之後會用 loadAll() 從 Sheet 校正) ----
-  const cfN = Math.max(monthlyCashflow.length, 1);
-  let curMonth = monthlyCashflow.find(m=>m.month===monthStr);
-  const beforeNet = curMonth ? curMonth.net : 0;
-  const signedAmount = quickEntryType==='收入' ? amount : -amount;
-  const afterNet = beforeNet + signedAmount;
-  const avgImpact = signedAmount / cfN;       // 對「月均淨結餘」的邊際影響
-  const annualImpact = avgImpact * 12;         // 換算成年化影響(即資產累積速率的年化變化)
-
-  const isBrake = quickEntryType==='支出';
-  const headline = isBrake
-    ? `🛑 煞車了一下!這筆 NT$${fmtMoney(amount)} 支出讓你的資產成長速率慢了下來`
-    : `🚀 加速!這筆 NT$${fmtMoney(amount)} 收入讓你的資產成長速率快了起來`;
-
-  const gaugeMagnitude = Math.min(100, (amount / Math.max(Math.abs(beforeNet)||amount, amount)) * 60 + 20);
-
-  feedbackEl.innerHTML = `
-    <div class="qe-feedback ${isBrake?'brake':'accel'}">
-      <div class="qe-headline">${headline}</div>
-      <div class="qe-line">本月淨結餘:NT$${fmtMoney(beforeNet)} → <b>NT$${fmtMoney(afterNet)}</b>(${signedAmount>=0?'+':''}NT$${fmtMoney(signedAmount)})</div>
-      <div class="qe-gauge-track"><div class="qe-gauge-fill ${isBrake?'brake':'accel'}" style="width:${gaugeMagnitude}%"></div></div>
-      <div class="qe-line">如果每個月都有這樣一筆${quickEntryType},你的資產累積速率長期會${isBrake?'慢':'快'}大約 <b>NT$${fmtMoney(Math.abs(annualImpact))}/年</b>(年化),月均約 ${isBrake?'-':'+'}NT$${fmtMoney(Math.abs(avgImpact))}/月。</div>
-      <div class="qe-line" style="color:#9a927c;">這是用目前資料估算的即時預覽,正式數字會在寫入 Sheet 後幾秒自動校正。</div>
-    </div>
-  `;
-
-  if(!SHEET_WEBAPP_URL || !SECRET_TOKEN){
-    statusEl.textContent = '(尚未設定 Sheet 網址或安全性權杖,這筆不會真的寫入,僅顯示預覽效果)';
-    statusEl.style.color = 'var(--gold)';
-    return false;
-  }
-
-  const payload = {
-    type: 'cashflowEntry', token: SECRET_TOKEN,
-    date: dateStr, entryType: quickEntryType, category: categoryVal, amount: amount, note: noteVal
-  };
-  try{
-    await fetch(SHEET_WEBAPP_URL, { method:'POST', mode:'no-cors', body: JSON.stringify(payload) });
-    statusEl.textContent = '已記錄!正在同步真實數字...';
-    statusEl.style.color = 'var(--teal)';
-    document.getElementById('quickEntryForm').reset();
-    setTimeout(loadAll, 1500);
-  }catch(err){
-    statusEl.textContent = '送出失敗:'+err.message;
-    statusEl.style.color = 'var(--red)';
-  }
-  return false;
-}
-
 function aggregateBySub(){
   const agg = {};
   Object.keys(targets).forEach(s=>agg[s]={value:0,category:null});
@@ -1068,26 +992,47 @@ function render(){
   });
 
   // 再平衡表 —— 依《投資金律》5/25 法則:偏離目標超過 5 個百分點,或超過目標值的 25%(取較嚴格者)才需動作
+  // 加碼/減碼金額 = 總資產 × 目標% − 目前金額(標準算法;5/25法則只是用來決定「要不要顯示為需要動作」,不影響金額計算方式)
   const rebalBody = document.getElementById('rebalBody');
   rebalBody.innerHTML = '';
+  const actionItems = []; // 收集需要動作的細項,等一下渲染成上方的行動清單
+
   Object.keys(targets).forEach(sub=>{
     const a = agg[sub] || {value:0};
     const pct = totalValue>0 ? a.value/totalValue : 0;
     const tgt = targets[sub];
     const band = Math.min(0.05, tgt*0.25);
     const lower = tgt - band, upper = tgt + band;
-    const targetValue = tgt*totalValue;
-    const diffAmt = targetValue - a.value;
     const breached = pct < lower || pct > upper;
+    const targetValue = tgt * totalValue;
+    const diffAmt = targetValue - a.value;
     const status = breached
       ? `<span class="action-needed">需要再平衡</span>`
       : `<span class="action-ok">容許範圍內</span>`;
     const action = !breached ? '暫不動作'
       : (diffAmt>0 ? `加碼 NT$${fmtMoney(diffAmt)}` : `減碼 NT$${fmtMoney(-diffAmt)}`);
+    if(breached){
+      actionItems.push({ sub, diffAmt });
+    }
     const tr = document.createElement('tr');
     tr.innerHTML = `<td class="name">${escapeHtml(sub)}</td><td>NT$${fmtMoney(a.value)}</td><td>${fmtPct(pct)}</td><td>${fmtPct(tgt)}</td><td>${fmtPct(lower)}~${fmtPct(upper)}</td><td class="name">${status}</td><td class="name">${escapeHtml(action)}</td>`;
     rebalBody.appendChild(tr);
   });
+
+  // 行動清單:只列出「需要再平衡」的細項,用市值算好的金額直接告訴你要加碼/減碼多少
+  const rebalActionListEl = document.getElementById('rebalActionList');
+  if(!actionItems.length){
+    rebalActionListEl.innerHTML = `<div class="rebal-all-ok">✅ 目前所有細項都在容許範圍內,不需要任何動作。</div>`;
+  } else {
+    actionItems.sort((a,b)=>Math.abs(b.diffAmt)-Math.abs(a.diffAmt)); // 金額大的排前面,優先處理
+    rebalActionListEl.innerHTML = actionItems.map(item=>{
+      const isBuy = item.diffAmt > 0;
+      return `<div class="rebal-action-item ${isBuy?'buy':'sell'}">
+        <span class="ra-name">${isBuy?'🟢 加碼':'🔴 減碼'} ${escapeHtml(item.sub)}</span>
+        <span class="ra-amount">NT$${fmtMoney(Math.abs(item.diffAmt))}</span>
+      </div>`;
+    }).join('');
+  }
 
   // 持股明細
   const hBody = document.getElementById('holdingsBody');
@@ -1232,12 +1177,75 @@ function loadDemoData(){
   renderTxList();
 }
 
+// 畫一個像飛機儀表板一樣的指針式儀表:紅/黃/綠三色區間 + 指針指向目前數值
+// value/scaleMax 為 0~1+ 的比率(例如 0.92 代表 92%);zones 是 [{to:0.5,color:'red'},{to:0.9,color:'yellow'},{to:999,color:'green'}] 這種累加式的分界
+function drawGaugeSVG(value, scaleMax, zones){
+  const W = 220, H = 140, cx = 110, cy = 120, r = 90;
+  const clampedValue = Math.max(0, Math.min(value, scaleMax));
+  const toAngle = frac => 180 - Math.max(0,Math.min(frac,1))*180; // frac=0→180°(左) frac=1→0°(右)
+  const polar = (angleDeg, radius) => {
+    const rad = angleDeg * Math.PI/180;
+    return { x: cx + radius*Math.cos(rad), y: cy - radius*Math.sin(rad) };
+  };
+
+  let svg = `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+
+  // 畫紅黃綠三色區間弧線
+  let prevFrac = 0;
+  zones.forEach(zone=>{
+    const zoneFrac = Math.min(zone.to/scaleMax, 1);
+    if(zoneFrac <= prevFrac) return;
+    const startPt = polar(toAngle(prevFrac), r);
+    const endPt = polar(toAngle(zoneFrac), r);
+    svg += `<path d="M${startPt.x.toFixed(1)},${startPt.y.toFixed(1)} A${r},${r} 0 0 1 ${endPt.x.toFixed(1)},${endPt.y.toFixed(1)}" fill="none" stroke="${zone.color}" stroke-width="16" stroke-linecap="butt"/>`;
+    prevFrac = zoneFrac;
+  });
+
+  // 指針
+  const needleFrac = clampedValue/scaleMax;
+  const needleAngle = toAngle(needleFrac);
+  const needleTip = polar(needleAngle, r-22);
+  svg += `<line x1="${cx}" y1="${cy}" x2="${needleTip.x.toFixed(1)}" y2="${needleTip.y.toFixed(1)}" stroke="#1b3a4b" stroke-width="4" stroke-linecap="round"/>`;
+  svg += `<circle cx="${cx}" cy="${cy}" r="8" fill="#1b3a4b"/>`;
+
+  svg += `</svg>`;
+  return svg;
+}
+
+// 儀表通用的紅黃綠分界:0~50%=危險、50~90%=注意、90%以上=安全
+const GAUGE_ZONES = [
+  { to: 0.50, color: 'var(--red)',  status: '🔴 危險', statusColor: 'var(--red)' },
+  { to: 0.90, color: 'var(--gold)', status: '🟡 注意', statusColor: 'var(--gold)' },
+  { to: 999,  color: 'var(--teal)', status: '🟢 安全', statusColor: 'var(--teal)' }
+];
+
+function gaugeStatusFor(value){
+  for(const zone of GAUGE_ZONES){
+    if(value <= zone.to) return zone;
+  }
+  return GAUGE_ZONES[GAUGE_ZONES.length-1];
+}
+
+function renderGaugeBox(label, value){
+  if(value === null || isNaN(value)){
+    return `<div class="gauge-box">${drawGaugeSVG(0, 1.5, GAUGE_ZONES)}<div class="gauge-value">--</div><div class="gauge-label">${escapeHtml(label)}</div></div>`;
+  }
+  const zone = gaugeStatusFor(value);
+  return `<div class="gauge-box">
+    ${drawGaugeSVG(value, 1.5, GAUGE_ZONES)}
+    <div class="gauge-value">${fmtPct(value)}</div>
+    <div class="gauge-label">${escapeHtml(label)}</div>
+    <div class="gauge-status" style="color:${zone.statusColor}">${zone.status}</div>
+  </div>`;
+}
+
 function renderFI(){
   const fiSummary = document.getElementById('fiSummary');
   const fiBody = document.getElementById('fiTableBody');
 
   if(!monthlyCashflow.length && assetSnapshots.length < 2){
     fiSummary.innerHTML = '';
+    document.getElementById('fiGaugeRow').innerHTML = '';
     fiBody.innerHTML = '<tr><td colspan="3" class="chart-empty">尚無現金流或資產快照資料,無法計算。請先完成現金流設定,或點下方「記錄本月快照」開始累積。</td></tr>';
     renderNetWorthChart();
     return;
@@ -1290,11 +1298,14 @@ function renderFI(){
   const sustainableAnnualWithdrawal = totalAssetValueGlobal*0.04;
   const incomeReplacementRatio = annualIncome>0 ? sustainableAnnualWithdrawal/annualIncome : null;
 
+  document.getElementById('fiGaugeRow').innerHTML =
+    renderGaugeBox('財富自由比率(依支出)', ratioByExpense) +
+    renderGaugeBox('所得替代率', incomeReplacementRatio);
+
   fiSummary.innerHTML = `
     <div class="summary-box"><div class="label">資產累積斜率(每月)· ${escapeHtml(slopeSource)}</div><div class="value small ${slope>=0?'pos':'neg'}">${slope>=0?'+':''}NT$${fmtMoney(slope)}/月</div></div>
     <div class="summary-box"><div class="label">年化成長速度(相對目前總資產)</div><div class="value small ${slopePctOfAssets>=0?'pos':'neg'}">${slopePctOfAssets!==null?fmtPct(slopePctOfAssets):'--'}/年</div></div>
     <div class="summary-box"><div class="label">目前總資產</div><div class="value">NT$${fmtMoney(totalAssetValueGlobal)}</div></div>
-    <div class="summary-box"><div class="label">所得替代率</div><div class="value small">${incomeReplacementRatio!==null?fmtPct(incomeReplacementRatio):'--'}</div></div>
   `;
 
   function fiRow(label, expenseVal, netVal, isPct){
@@ -1421,6 +1432,7 @@ async function loadAll(){
 document.getElementById('txDate').valueAsDate = new Date();
 updateSubOptions();
 document.getElementById('throttleDesc').textContent = throttleDescription(70);
+updateTokenBanner();
 loadAll();
 </script>
 </body>
