@@ -275,6 +275,7 @@
         <select id="txSub"></select>
       </div>
       <div class="field"><label>數量</label><input type="number" id="txQty" step="0.0001" required></div>
+      <div class="field"><label>買入價</label><input type="number" id="txPrice" step="0.0001" placeholder="每股/每單位價格" required></div>
       <div class="field"><button type="submit" class="submit-btn">登記送出</button></div>
     </form>
     <div class="status-msg" id="txStatus"></div>
@@ -285,7 +286,7 @@
         <button class="refresh-btn" onclick="loadAll()">重新整理</button>
       </div>
       <table>
-        <thead><tr><th>交易日期</th><th>代號</th><th>大類</th><th>細項</th><th>數量</th><th>操作</th></tr></thead>
+        <thead><tr><th>交易日期</th><th>代號</th><th>大類</th><th>細項</th><th>數量</th><th>買入價</th><th>操作</th></tr></thead>
         <tbody id="txListBody"></tbody>
       </table>
       <div class="status-msg" id="txListStatus"></div>
@@ -297,9 +298,7 @@
         <b>Step 1</b> — 在你原本的 Google Sheet 裡新增兩個分頁,分頁名稱與欄位必須完全一致:<br><br>
         <b>分頁「交易登記」</b>,A1:H1 填入標題列(A欄是登記時間戳記,跟Google表單的輸出格式對齊,方便你之後也能用手機表單登記):<br>
         <code>時間戳記 | 交易日期 | 代號 | 大類 | 細項 | 數量 | 買入價 | 成本</code><br>
-        G2 公式(往下拉到所有列):<br>
-        <code>=IFERROR(INDEX(GOOGLEFINANCE(C2,"close",B2,B2+1),2,2),"")</code><br>
-        H2 公式:<code>=F2*G2</code><br><br>
+        <b style="color:var(--teal)">G(買入價)、H(成本)這兩欄現在不用貼公式</b>——你在下面「交易登記」表單登記交易時,買入價是你自己輸入的,系統會直接把買入價和算好的成本(數量×買入價)寫進 G、H 兩欄,不再依賴 GOOGLEFINANCE 自動抓歷史股價。<br><br>
 
         <b>分頁「資產總表」</b>,A1:I1 標題列:<br>
         <code>代號 | 大類 | 細項 | 股數 | 總成本 | 現價 | 市值 | 損益 | 報酬率</code><br>
@@ -345,8 +344,9 @@
         &nbsp;&nbsp;③ <code>大類</code> —— 題型選「單選」,選項:股票 / 債券 / 現金<br>
         &nbsp;&nbsp;④ <code>細項</code> —— 題型選「單選」,選項全部列出:美股核心 / 台股核心 / 主題衛星 / 區域型 / 公債 / 公司債 / 現金(表單不支援依大類篩選細項選項,除非用「根據答案跳轉至指定分節」設計3個分節,每個大類各自跳到只列出對應細項的分節,比較進階但可行)<br>
         &nbsp;&nbsp;⑤ <code>數量</code> —— 題型選「簡答」,回應驗證選「數字」大於0<br>
-        2. 表單右上角「回覆」分頁 → 點 Google Sheets 圖示 → 選擇「選取現有試算表」→ 選你這份資產試算表。表單會自動建立一個新分頁(預設名稱通常是「表單回應 1」),欄位順序是:<code>時間戳記 | 交易日期 | 代號 | 大類 | 細項 | 數量</code>。<br>
-        3. 把這個自動產生的分頁直接改名為「交易登記」(或把它的資料複製貼到你手動建立的「交易登記」分頁對應欄位),確保欄位順序跟上面 Step 1 的表格一致,再把 G、H 兩欄的公式往下拉到新增的每一列即可自動算出買入價和成本。<br>
+        &nbsp;&nbsp;⑥ <code>買入價</code> —— 題型選「簡答」,回應驗證選「數字」大於0<br>
+        2. 表單右上角「回覆」分頁 → 點 Google Sheets 圖示 → 選擇「選取現有試算表」→ 選你這份資產試算表。表單會自動建立一個新分頁(預設名稱通常是「表單回應 1」),欄位順序是:<code>時間戳記 | 交易日期 | 代號 | 大類 | 細項 | 數量 | 買入價</code>。<br>
+        3. 把這個自動產生的分頁直接改名為「交易登記」(或把它的資料複製貼到你手動建立的「交易登記」分頁對應欄位),確保欄位順序跟上面 Step 1 的表格一致。「成本」(H欄)這一欄表單不會自動填,你可以在 H2 打一次 <code>=F2*G2</code> 再往下拉到有資料的列即可(這個是單純的乘法,不是抓即時股價,不會有陣列公式的問題)。<br>
         這樣一來,手機上用 Google 表單登記,電腦上用這個儀表板網頁登記,兩邊都會寫進同一個「交易登記」分頁,資料格式完全相容。</div>
       <pre id="appsScriptCode"></pre>
     </details>
@@ -610,7 +610,7 @@ function doGet(e) {
       var txDateStr = (txDate instanceof Date) ? Utilities.formatDate(txDate, Session.getScriptTimeZone(), 'yyyy-MM-dd') : String(txDate);
       transactions.push({
         row: t + 1, // 實際 Sheet 列號(1-indexed,+1因為t從1開始對應第2列)
-        date: txDateStr, ticker: txRow[2], category: txRow[3], sub: txRow[4], qty: txRow[5]
+        date: txDateStr, ticker: txRow[2], category: txRow[3], sub: txRow[4], qty: txRow[5], price: txRow[6]
       });
     }
   }
@@ -636,33 +636,53 @@ function validateTxInput_(ticker, qty, category, sub, date) {
 }
 
 // 統一處理所有寫入動作(新增/編輯/刪除交易、記錄快照),回傳明確的成功或失敗訊息
+// 找出「交易登記」分頁裡第一個代號(C欄)還是空的列,用來決定新交易要寫在哪一列。
+// 不用 appendRow() 是因為 G、H 欄可能已經預先貼好公式一路到很下面,appendRow 會被那些
+// 「看起來有內容」的列誤導,跳到很後面才寫入,导致使用者以為沒寫入成功。
+function findNextEmptyTxRow_(sheet) {
+  var lastRow = Math.max(sheet.getLastRow(), 1);
+  if (lastRow < 2) return 2;
+  var colC = sheet.getRange(2, 3, lastRow - 1, 1).getValues();
+  for (var i = 0; i < colC.length; i++) {
+    if (!colC[i][0]) return i + 2;
+  }
+  return lastRow + 1;
+}
+
 function handleWriteAction_(ss, action, p) {
   if (action === 'addTransaction') {
     var ticker = String(p.ticker || '');
     var qty = Number(p.qty);
+    var price = Number(p.price);
     var err = validateTxInput_(ticker, qty, p.category, p.sub, p.date);
     if (err) return { error: err };
+    if (isNaN(price) || price <= 0 || price > 100000000) return { error: 'invalid price' };
     var sheet = ss.getSheetByName('交易登記');
     if (!sheet) return { error: '找不到分頁「交易登記」,請確認分頁名稱完全一致' };
-    sheet.appendRow([
+    var targetRow = findNextEmptyTxRow_(sheet);
+    var cost = qty * price;
+    sheet.getRange(targetRow, 1, 1, 8).setValues([[
       new Date(), sanitizeCell_(p.date), sanitizeCell_(ticker),
-      sanitizeCell_(p.category), sanitizeCell_(p.sub), qty
-    ]);
-    return { status: 'ok' };
+      sanitizeCell_(p.category), sanitizeCell_(p.sub), qty, price, cost
+    ]]);
+    return { status: 'ok', row: targetRow };
   }
 
   if (action === 'updateTransaction') {
     var uTicker = String(p.ticker || '').toUpperCase();
     var uQty = Number(p.qty);
+    var uPrice = Number(p.price);
     var uErr = validateTxInput_(uTicker, uQty, p.category, p.sub, p.date);
     if (uErr) return { error: uErr };
+    if (isNaN(uPrice) || uPrice <= 0 || uPrice > 100000000) return { error: 'invalid price' };
     var txSheetEdit = ss.getSheetByName('交易登記');
     if (!txSheetEdit) return { error: '找不到分頁「交易登記」' };
     var row = Number(p.row);
     if (isNaN(row) || row < 2 || row > txSheetEdit.getLastRow()) return { error: 'invalid row' };
-    txSheetEdit.getRange(row, 2, 1, 5).setValues([[
+    var uCost = uQty * uPrice;
+    txSheetEdit.getRange(row, 2, 1, 7).setValues([[
       sanitizeCell_(p.date), sanitizeCell_(uTicker),
-      sanitizeCell_(p.category), sanitizeCell_(p.sub), uQty
+      sanitizeCell_(p.category), sanitizeCell_(p.sub), uQty, uPrice, uCost
     ]]);
     return { status: 'ok' };
   }
@@ -812,6 +832,10 @@ function validQty(q){
   const n = Number(q);
   return !isNaN(n) && n > 0 && n < 1000000;
 }
+function validPrice(p){
+  const n = Number(p);
+  return !isNaN(n) && n > 0 && n < 100000000;
+}
 function validDate(d){
   return /^\d{4}-\d{2}-\d{2}$/.test(d);
 }
@@ -842,6 +866,7 @@ async function submitTx(evt){
   const dateVal = document.getElementById('txDate').value;
   const tickerVal = document.getElementById('txTicker').value.trim().toUpperCase();
   const qtyVal = document.getElementById('txQty').value;
+  const priceVal = document.getElementById('txPrice').value;
 
   if(!validDate(dateVal)){
     statusEl.textContent = '交易日期格式不正確。';
@@ -855,6 +880,10 @@ async function submitTx(evt){
     statusEl.textContent = '數量必須是大於 0 的數字。';
     statusEl.style.color = 'var(--red)'; return false;
   }
+  if(!validPrice(priceVal)){
+    statusEl.textContent = '買入價必須是大於 0 的數字。';
+    statusEl.style.color = 'var(--red)'; return false;
+  }
 
   const payload = {
     action: 'addTransaction',
@@ -862,7 +891,8 @@ async function submitTx(evt){
     ticker: tickerVal,
     category: document.getElementById('txCategory').value,
     sub: document.getElementById('txSub').value,
-    qty: qtyVal
+    qty: qtyVal,
+    price: priceVal
   };
   if(!SHEET_WEBAPP_URL){
     statusEl.textContent = '尚未設定 Sheet 網址,請依下方教學部署 Apps Script。';
@@ -895,7 +925,7 @@ const CATEGORY_OPTIONS_ALL = ['股票','債券','現金'];
 function renderTxList(){
   const body = document.getElementById('txListBody');
   if(!transactions.length){
-    body.innerHTML = '<tr><td colspan="6" class="chart-empty">尚無交易紀錄,或尚未設定 Sheet 網址。</td></tr>';
+    body.innerHTML = '<tr><td colspan="7" class="chart-empty">尚無交易紀錄,或尚未設定 Sheet 網址。</td></tr>';
     return;
   }
   body.innerHTML = transactions.map(tx=>{
@@ -907,6 +937,7 @@ function renderTxList(){
         <td class="name">${escapeHtml(tx.category)}</td>
         <td class="name">${escapeHtml(tx.sub)}</td>
         <td>${escapeHtml(tx.qty)}</td>
+        <td>${fmtMoney(tx.price)}</td>
         <td>
           <button class="row-btn save" style="background:var(--navy);" onclick="editTxRow(${tx.row})">編輯</button>
           <button class="row-btn delete" onclick="deleteTx(${tx.row})">刪除</button>
@@ -921,6 +952,7 @@ function renderTxList(){
         <td><select class="tx-edit-select" id="edit-category-${tx.row}">${catOpts}</select></td>
         <td><select class="tx-edit-select" id="edit-sub-${tx.row}">${subOpts}</select></td>
         <td><input class="tx-edit-input" type="number" step="0.0001" id="edit-qty-${tx.row}" value="${tx.qty}"></td>
+        <td><input class="tx-edit-input" type="number" step="0.0001" id="edit-price-${tx.row}" value="${tx.price}"></td>
         <td>
           <button class="row-btn save" onclick="saveTxEdit(${tx.row})">儲存</button>
           <button class="row-btn cancel" onclick="cancelTxEdit()">取消</button>
@@ -947,15 +979,17 @@ async function saveTxEdit(row){
   const categoryVal = document.getElementById('edit-category-'+row).value;
   const subVal = document.getElementById('edit-sub-'+row).value;
   const qtyVal = document.getElementById('edit-qty-'+row).value;
+  const priceVal = document.getElementById('edit-price-'+row).value;
 
   if(!validDate(dateVal)){ statusEl.textContent='交易日期格式不正確。'; statusEl.style.color='var(--red)'; return; }
   if(!validTicker(tickerVal)){ statusEl.textContent='代號格式不正確(英數字/點/連字號,1-15字,不能以=+-@開頭)。'; statusEl.style.color='var(--red)'; return; }
   if(!validQty(qtyVal)){ statusEl.textContent='數量必須是大於0的數字。'; statusEl.style.color='var(--red)'; return; }
+  if(!validPrice(priceVal)){ statusEl.textContent='買入價必須是大於0的數字。'; statusEl.style.color='var(--red)'; return; }
   if(!SHEET_WEBAPP_URL || !SECRET_TOKEN){ statusEl.textContent='尚未設定 Sheet 網址或安全性權杖。'; statusEl.style.color='var(--red)'; return; }
 
   const payload = {
     action:'updateTransaction', row:row,
-    date:dateVal, ticker:tickerVal, category:categoryVal, sub:subVal, qty:qtyVal
+    date:dateVal, ticker:tickerVal, category:categoryVal, sub:subVal, qty:qtyVal, price:priceVal
   };
   statusEl.textContent = '送出中...';
   statusEl.style.color = 'var(--gold)';
@@ -1438,8 +1472,8 @@ function jsonpFetch(url, timeoutMs){
       if(done) return;
       done = true;
       cleanup();
-      reject(new Error('讀取逾時,請確認網址是否正確、Apps Script 是否已部署'));
-    }, timeoutMs || 15000);
+      reject(new Error('讀取逾時(超過45秒),可能是 Sheet 公式較多算得慢,或網址/部署設定有誤'));
+    }, timeoutMs || 45000);
 
     script.onerror = () => {
       if(done) return;
@@ -1478,13 +1512,24 @@ async function loadAll(){
   if(errEl) errEl.style.display = 'none';
 
   if(SHEET_WEBAPP_URL){
+    if(errEl){
+      errEl.style.display = 'flex';
+      errEl.style.background = '#f3ecd4';
+      errEl.style.borderColor = 'var(--gold)';
+      errEl.style.color = '#8a6d1f';
+      errEl.innerHTML = '⏳ 讀取中...如果 Sheet 公式較多,可能需要 10~30 秒。';
+    }
     try{
       const url = SHEET_WEBAPP_URL + '?token=' + encodeURIComponent(SECRET_TOKEN);
       const json = await jsonpFetch(url);
+      if(errEl) errEl.style.display = 'none';
       if(json.error){
         console.error('Sheet 拒絕存取:', json.error);
         if(errEl){
           errEl.style.display = 'flex';
+          errEl.style.background = '#f8ece8';
+          errEl.style.borderColor = 'var(--red)';
+          errEl.style.color = 'var(--red)';
           errEl.innerHTML = `⚠️ 讀取失敗:${escapeHtml(json.error)}(通常是 token 不正確)<button class="row-btn save" onclick="promptForToken()">重新設定權杖</button>`;
         }
       } else {
@@ -1504,13 +1549,16 @@ async function loadAll(){
         }));
         transactions = (json.transactions||[]).map(t=>({
           row: Number(t.row), date: t.date, ticker: t.ticker,
-          category: t.category, sub: t.sub, qty: Number(t.qty)||0
+          category: t.category, sub: t.sub, qty: Number(t.qty)||0, price: Number(t.price)||0
         }));
       }
     }catch(err){
       console.error('讀取 Sheet 失敗', err);
       if(errEl){
         errEl.style.display = 'flex';
+        errEl.style.background = '#f8ece8';
+        errEl.style.borderColor = 'var(--red)';
+        errEl.style.color = 'var(--red)';
         errEl.innerHTML = `⚠️ 讀取失敗:${escapeHtml(err.message)}(可能是網址錯誤或網路問題)`;
       }
     }
