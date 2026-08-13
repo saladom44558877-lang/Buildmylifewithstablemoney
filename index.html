@@ -531,6 +531,13 @@ function doGet(e) {
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
 
+  // 如果帶了 action 參數,代表這是「寫入」請求(透過 GET+JSONP 送出,才能讀到真正的成功/失敗結果,
+  // 不像原本 POST+no-cors 那樣完全看不到 Apps Script 那端到底有沒有寫入成功)
+  var action = e.parameter.action;
+  if (action) {
+    return respond(handleWriteAction_(ss, action, e.parameter));
+  }
+
   // 讀取資產總表(股票/債券持股)
   var assetSheet = ss.getSheetByName('資產總表');
   var holdings = [];
@@ -626,6 +633,62 @@ function validateTxInput_(ticker, qty, category, sub, date) {
   if (!CATEGORY_TREE_[category] || CATEGORY_TREE_[category].indexOf(sub) === -1) return 'invalid sub';
   if (!validDate_(date)) return 'invalid date';
   return null;
+}
+
+// 統一處理所有寫入動作(新增/編輯/刪除交易、記錄快照),回傳明確的成功或失敗訊息
+function handleWriteAction_(ss, action, p) {
+  if (action === 'addTransaction') {
+    var ticker = String(p.ticker || '');
+    var qty = Number(p.qty);
+    var err = validateTxInput_(ticker, qty, p.category, p.sub, p.date);
+    if (err) return { error: err };
+    var sheet = ss.getSheetByName('交易登記');
+    if (!sheet) return { error: '找不到分頁「交易登記」,請確認分頁名稱完全一致' };
+    sheet.appendRow([
+      new Date(), sanitizeCell_(p.date), sanitizeCell_(ticker),
+      sanitizeCell_(p.category), sanitizeCell_(p.sub), qty
+    ]);
+    return { status: 'ok' };
+  }
+
+  if (action === 'updateTransaction') {
+    var uTicker = String(p.ticker || '').toUpperCase();
+    var uQty = Number(p.qty);
+    var uErr = validateTxInput_(uTicker, uQty, p.category, p.sub, p.date);
+    if (uErr) return { error: uErr };
+    var txSheetEdit = ss.getSheetByName('交易登記');
+    if (!txSheetEdit) return { error: '找不到分頁「交易登記」' };
+    var row = Number(p.row);
+    if (isNaN(row) || row < 2 || row > txSheetEdit.getLastRow()) return { error: 'invalid row' };
+    txSheetEdit.getRange(row, 2, 1, 5).setValues([[
+      sanitizeCell_(p.date), sanitizeCell_(uTicker),
+      sanitizeCell_(p.category), sanitizeCell_(p.sub), uQty
+    ]]);
+    return { status: 'ok' };
+  }
+
+  if (action === 'deleteTransaction') {
+    var txSheetDel = ss.getSheetByName('交易登記');
+    if (!txSheetDel) return { error: '找不到分頁「交易登記」' };
+    var delRow = Number(p.row);
+    if (isNaN(delRow) || delRow < 2 || delRow > txSheetDel.getLastRow()) return { error: 'invalid row' };
+    txSheetDel.deleteRow(delRow);
+    return { status: 'ok' };
+  }
+
+  if (action === 'snapshot') {
+    var total = Number(p.total), stock = Number(p.stock), bond = Number(p.bond), cash = Number(p.cash);
+    if (!validDate_(p.date)) return { error: 'invalid date' };
+    if ([total, stock, bond, cash].some(function(v){ return isNaN(v) || v < 0 || v > 1e12; })) {
+      return { error: 'invalid snapshot values' };
+    }
+    var snapSheet2 = ss.getSheetByName('資產快照歷史');
+    if (!snapSheet2) return { error: '找不到分頁「資產快照歷史」' };
+    snapSheet2.appendRow([sanitizeCell_(p.date), total, stock, bond, cash]);
+    return { status: 'ok' };
+  }
+
+  return { error: 'unknown action' };
 }
 
 function doPost(e) {
@@ -794,8 +857,7 @@ async function submitTx(evt){
   }
 
   const payload = {
-    type:'transaction',
-    token: SECRET_TOKEN,
+    action: 'addTransaction',
     date: dateVal,
     ticker: tickerVal,
     category: document.getElementById('txCategory').value,
@@ -812,17 +874,16 @@ async function submitTx(evt){
     statusEl.style.color = 'var(--red)';
     return false;
   }
+  statusEl.textContent = '送出中...';
+  statusEl.style.color = 'var(--gold)';
   try{
-    await fetch(SHEET_WEBAPP_URL, {
-      method:'POST', mode:'no-cors',
-      body: JSON.stringify(payload)
-    });
-    statusEl.textContent = '已送出登記(因跨網域限制無法100%確認寫入成功,建議偶爾回 Sheet 確認)';
+    await jsonpWrite(payload);
+    statusEl.textContent = '✅ 已成功寫入 Sheet!';
     statusEl.style.color = 'var(--teal)';
     document.getElementById('txForm').reset();
-    setTimeout(loadAll, 1500);
+    setTimeout(loadAll, 800);
   }catch(err){
-    statusEl.textContent = '送出失敗:'+err.message;
+    statusEl.textContent = '❌ 寫入失敗:'+err.message;
     statusEl.style.color = 'var(--red)';
   }
   return false;
@@ -893,17 +954,19 @@ async function saveTxEdit(row){
   if(!SHEET_WEBAPP_URL || !SECRET_TOKEN){ statusEl.textContent='尚未設定 Sheet 網址或安全性權杖。'; statusEl.style.color='var(--red)'; return; }
 
   const payload = {
-    type:'updateTransaction', token:SECRET_TOKEN, row:row,
+    action:'updateTransaction', row:row,
     date:dateVal, ticker:tickerVal, category:categoryVal, sub:subVal, qty:qtyVal
   };
+  statusEl.textContent = '送出中...';
+  statusEl.style.color = 'var(--gold)';
   try{
-    await fetch(SHEET_WEBAPP_URL, { method:'POST', mode:'no-cors', body: JSON.stringify(payload) });
-    statusEl.textContent = '已送出修改(跨網域限制無法即時確認,稍後會自動重新整理)。';
+    await jsonpWrite(payload);
+    statusEl.textContent = '✅ 修改成功!';
     statusEl.style.color = 'var(--teal)';
     txEditingRow = null;
-    setTimeout(loadAll, 1500);
+    setTimeout(loadAll, 800);
   }catch(err){
-    statusEl.textContent = '送出失敗:'+err.message;
+    statusEl.textContent = '❌ 修改失敗:'+err.message;
     statusEl.style.color = 'var(--red)';
   }
 }
@@ -913,14 +976,15 @@ async function deleteTx(row){
   if(!SHEET_WEBAPP_URL || !SECRET_TOKEN){ statusEl.textContent='尚未設定 Sheet 網址或安全性權杖。'; statusEl.style.color='var(--red)'; return; }
   if(!confirm('確定要刪除這筆交易紀錄嗎?這個動作無法復原。')) return;
 
-  const payload = { type:'deleteTransaction', token:SECRET_TOKEN, row:row };
+  statusEl.textContent = '刪除中...';
+  statusEl.style.color = 'var(--gold)';
   try{
-    await fetch(SHEET_WEBAPP_URL, { method:'POST', mode:'no-cors', body: JSON.stringify(payload) });
-    statusEl.textContent = '已送出刪除(跨網域限制無法即時確認,稍後會自動重新整理)。';
+    await jsonpWrite({ action:'deleteTransaction', row:row });
+    statusEl.textContent = '✅ 已成功刪除!';
     statusEl.style.color = 'var(--teal)';
-    setTimeout(loadAll, 1500);
+    setTimeout(loadAll, 800);
   }catch(err){
-    statusEl.textContent = '送出失敗:'+err.message;
+    statusEl.textContent = '❌ 刪除失敗:'+err.message;
     statusEl.style.color = 'var(--red)';
   }
 }
@@ -1328,21 +1392,22 @@ async function recordSnapshot(){
   }
 
   const payload = {
-    type: 'snapshot',
-    token: SECRET_TOKEN,
+    action: 'snapshot',
     date: dateStr,
     total: totalAssetValueGlobal,
     stock: stockValue,
     bond: bondValue,
     cash: cashValue
   };
+  statusEl.textContent = '送出中...';
+  statusEl.style.color = 'var(--gold)';
   try{
-    await fetch(SHEET_WEBAPP_URL, { method:'POST', mode:'no-cors', body: JSON.stringify(payload) });
-    statusEl.textContent = `已送出 ${dateStr} 的快照(因跨網域限制無法100%確認寫入成功,建議偶爾回 Sheet 確認)。`;
+    await jsonpWrite(payload);
+    statusEl.textContent = `✅ ${dateStr} 的快照已成功記錄!`;
     statusEl.style.color = 'var(--teal)';
-    setTimeout(loadAll, 1500);
+    setTimeout(loadAll, 800);
   }catch(err){
-    statusEl.textContent = '送出失敗:'+err.message;
+    statusEl.textContent = '❌ 送出失敗:'+err.message;
     statusEl.style.color = 'var(--red)';
   }
 }
@@ -1387,6 +1452,23 @@ function jsonpFetch(url, timeoutMs){
     script.src = url + sep + 'callback=' + cbName;
     document.body.appendChild(script);
   });
+}
+
+// 統一的寫入請求:透過 GET+JSONP 呼叫(取代原本 POST+no-cors),
+// 這樣才能真正讀到 Apps Script 回傳的成功或失敗訊息,不會再悶著頭猜有沒有寫入成功。
+// params 是一個物件,例如 {action:'addTransaction', date:'2026-08-01', ticker:'VOO', ...}
+async function jsonpWrite(params){
+  if(!SHEET_WEBAPP_URL) throw new Error('尚未設定 Sheet 網址');
+  if(!SECRET_TOKEN) throw new Error('尚未設定安全性權杖');
+  const query = Object.keys(params)
+    .map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k]))
+    .join('&');
+  const url = SHEET_WEBAPP_URL + '?token=' + encodeURIComponent(SECRET_TOKEN) + '&' + query;
+  const result = await jsonpFetch(url);
+  if(result && result.error){
+    throw new Error(result.error);
+  }
+  return result;
 }
 
 async function loadAll(){
