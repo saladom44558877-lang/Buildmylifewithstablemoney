@@ -175,6 +175,19 @@
   .gauge-box .gauge-label{font-size:12px; color:#7a7362; font-weight:700; margin-top:4px;}
   .gauge-box .gauge-value{font-family:'Space Mono',monospace; font-size:22px; font-weight:900; margin-top:2px;}
   .gauge-box .gauge-status{font-size:11px; margin-top:2px; font-weight:700;}
+  .range-selector{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;}
+  .range-btn{
+    padding:6px 12px; border:1px solid var(--line); border-radius:16px; background:#fdfcf6;
+    font-family:'Noto Sans TC',sans-serif; font-size:12px; color:#7a7362; cursor:pointer;
+  }
+  .range-btn.active{background:var(--navy); border-color:var(--navy); color:#fff; font-weight:700;}
+  .range-btn:hover:not(.active){border-color:var(--teal); color:var(--teal);}
+  .custom-range-row{display:flex; align-items:center; gap:8px; margin-bottom:10px; font-size:12px; color:#7a7362;}
+  .custom-range-row input[type="month"]{
+    padding:5px 8px; border:1px solid var(--line); border-radius:5px; font-family:'Noto Sans TC',sans-serif; font-size:12px;
+  }
+  .chart-drag-hint{font-size:11px; color:#9a927c; margin-bottom:6px;}
+  .chart-svg{touch-action:pan-y;}
   footer{max-width:920px; margin:20px auto; padding:0 16px; font-size:11px; color:#9a927c; text-align:center;}
 </style>
 </head>
@@ -360,6 +373,21 @@
     <div class="section-title"><span class="num">01</span> 現金流量(來自 Money Manager 匯出)</div>
     <div class="summary-row" id="cashflowSummary" style="margin-bottom:16px;"></div>
     <div style="margin-bottom:8px; font-size:12px; color:#7a7362; font-weight:700;">累積結餘趨勢</div>
+    <div class="range-selector" id="rangeSelector">
+      <button type="button" class="range-btn" data-range="1m" onclick="setCashflowRange('1m')">1個月</button>
+      <button type="button" class="range-btn" data-range="3m" onclick="setCashflowRange('3m')">3個月</button>
+      <button type="button" class="range-btn" data-range="6m" onclick="setCashflowRange('6m')">6個月</button>
+      <button type="button" class="range-btn" data-range="1y" onclick="setCashflowRange('1y')">1年</button>
+      <button type="button" class="range-btn active" data-range="all" onclick="setCashflowRange('all')">全部</button>
+      <button type="button" class="range-btn" data-range="custom" onclick="setCashflowRange('custom')">自訂</button>
+    </div>
+    <div class="custom-range-row" id="customRangeRow" style="display:none;">
+      <input type="month" id="customRangeStart">
+      <span>至</span>
+      <input type="month" id="customRangeEnd">
+      <button type="button" class="row-btn save" onclick="applyCustomRange()">套用</button>
+    </div>
+    <div class="chart-drag-hint">💡 在圖上拖移(或手機上滑動)可以看每個月的詳細數字</div>
     <div id="cumulativeChart" style="margin-bottom:20px;"></div>
     <div style="margin-bottom:8px; font-size:12px; color:#7a7362; font-weight:700;">每月收支結餘(綠色=淨收入 紅色=淨支出)</div>
     <div id="netBarChart"></div>
@@ -1161,6 +1189,37 @@ async function loadTargets(){
   }catch(e){ /* 尚無儲存值,使用預設 */ }
 }
 
+let cashflowRangeMode = 'all';
+let cashflowCustomStart = '';
+let cashflowCustomEnd = '';
+
+function setCashflowRange(mode){
+  cashflowRangeMode = mode;
+  document.querySelectorAll('#rangeSelector .range-btn').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.range === mode);
+  });
+  document.getElementById('customRangeRow').style.display = (mode === 'custom') ? 'flex' : 'none';
+  if(mode !== 'custom') renderCashflow();
+}
+
+function applyCustomRange(){
+  cashflowCustomStart = document.getElementById('customRangeStart').value; // yyyy-mm
+  cashflowCustomEnd = document.getElementById('customRangeEnd').value;
+  renderCashflow();
+}
+
+// 依照目前選擇的時間範圍,篩選出要顯示的月份資料
+function filterCashflowByRange(data){
+  if(!data.length) return data;
+  if(cashflowRangeMode === 'all') return data;
+  if(cashflowRangeMode === 'custom'){
+    if(!cashflowCustomStart && !cashflowCustomEnd) return data;
+    return data.filter(m => (!cashflowCustomStart || m.month >= cashflowCustomStart) && (!cashflowCustomEnd || m.month <= cashflowCustomEnd));
+  }
+  const monthsBack = { '1m':1, '3m':3, '6m':6, '1y':12 }[cashflowRangeMode] || 999;
+  return data.slice(Math.max(0, data.length - monthsBack));
+}
+
 function renderCashflow(){
   const summaryEl = document.getElementById('cashflowSummary');
   const cumEl = document.getElementById('cumulativeChart');
@@ -1181,22 +1240,29 @@ function renderCashflow(){
     <div class="summary-box"><div class="label">累積結餘</div><div class="value ${latest.cumulative>=0?'pos':'neg'}">NT$${fmtMoney(latest.cumulative)}</div></div>
   `;
 
-  // ---- 累積結餘趨勢(折線圖) ----
+  const filtered = filterCashflowByRange(monthlyCashflow);
+  if(!filtered.length){
+    cumEl.innerHTML = '<div class="chart-empty">這個時間範圍內沒有資料,換一個範圍試試。</div>';
+    barEl.innerHTML = '';
+    return;
+  }
+
+  // ---- 累積結餘趨勢(可拖移的折線圖) ----
   const W = 760, H = 180, padL = 55, padR = 15, padT = 15, padB = 25;
-  const cumVals = monthlyCashflow.map(m=>m.cumulative);
+  const cumVals = filtered.map(m=>m.cumulative);
   const cumMin = Math.min(0, ...cumVals), cumMax = Math.max(0, ...cumVals);
   const cumRange = (cumMax - cumMin) || 1;
-  const n = monthlyCashflow.length;
+  const n = filtered.length;
   const xStep = n>1 ? (W-padL-padR)/(n-1) : 0;
   const yFor = v => padT + (H-padT-padB) * (1 - (v-cumMin)/cumRange);
   const xFor = i => padL + xStep*i;
 
-  let linePoints = monthlyCashflow.map((m,i)=>`${xFor(i)},${yFor(m.cumulative)}`).join(' ');
+  let linePoints = filtered.map((m,i)=>`${xFor(i)},${yFor(m.cumulative)}`).join(' ');
   const zeroY = yFor(0);
-  let cumSvg = `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+  let cumSvg = `<svg class="chart-svg" id="cumSvgEl" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
   cumSvg += `<line x1="${padL}" y1="${zeroY}" x2="${W-padR}" y2="${zeroY}" stroke="#dcd4c0" stroke-width="1"/>`;
   cumSvg += `<polyline points="${linePoints}" fill="none" stroke="#3a8f8c" stroke-width="2.5"/>`;
-  monthlyCashflow.forEach((m,i)=>{
+  filtered.forEach((m,i)=>{
     cumSvg += `<circle cx="${xFor(i)}" cy="${yFor(m.cumulative)}" r="3" fill="#1b3a4b"/>`;
     if(i===0 || i===n-1 || i%Math.ceil(n/8)===0){
       cumSvg += `<text x="${xFor(i)}" y="${H-6}" class="chart-tooltip-label" text-anchor="middle">${escapeHtml(m.month)}</text>`;
@@ -1204,18 +1270,28 @@ function renderCashflow(){
   });
   cumSvg += `<text x="4" y="${yFor(cumMax)+4}" class="chart-tooltip-label">${fmtMoney(cumMax)}</text>`;
   cumSvg += `<text x="4" y="${yFor(cumMin)+4}" class="chart-tooltip-label">${fmtMoney(cumMin)}</text>`;
+  // 拖移用的十字準線與提示框(預設隱藏,由 setupCumScrub 控制)
+  cumSvg += `<g id="cumCrosshair" style="display:none;">
+    <line id="cumCrosshairLine" x1="0" y1="${padT}" x2="0" y2="${H-padB}" stroke="#c99a3c" stroke-width="1" stroke-dasharray="3,3"/>
+    <circle id="cumCrosshairDot" r="4" fill="#c99a3c" stroke="#1b3a4b" stroke-width="1.5"/>
+    <rect id="cumTipBg" width="92" height="34" rx="5" fill="#1b3a4b"/>
+    <text id="cumTipDate" x="0" y="0" fill="#c7e2df" font-family="Space Mono, monospace" font-size="9"></text>
+    <text id="cumTipValue" x="0" y="0" fill="#fff" font-family="Space Mono, monospace" font-size="11" font-weight="700"></text>
+  </g>`;
+  cumSvg += `<rect id="cumOverlay" x="${padL}" y="0" width="${Math.max(W-padL-padR,1)}" height="${H}" fill="transparent" style="cursor:ew-resize;"/>`;
   cumSvg += `</svg>`;
   cumEl.innerHTML = cumSvg;
+  setupCumScrub(filtered, xFor, yFor, padL, padR, W, H);
 
-  // ---- 每月淨結餘(長條圖) ----
-  const netVals = monthlyCashflow.map(m=>m.net);
+  // ---- 每月淨結餘(長條圖,套用同樣的時間範圍) ----
+  const netVals = filtered.map(m=>m.net);
   const netMax = Math.max(1, ...netVals.map(Math.abs));
   const barZeroY = padT + (H-padT-padB)/2;
   const halfH = (H-padT-padB)/2;
   const barW = Math.min(28, (W-padL-padR)/n * 0.6);
   let barSvg = `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
   barSvg += `<line x1="${padL}" y1="${barZeroY}" x2="${W-padR}" y2="${barZeroY}" stroke="#dcd4c0" stroke-width="1"/>`;
-  monthlyCashflow.forEach((m,i)=>{
+  filtered.forEach((m,i)=>{
     const cx = xFor(i);
     const h = Math.abs(m.net)/netMax*halfH;
     const y = m.net>=0 ? barZeroY-h : barZeroY;
@@ -1227,6 +1303,55 @@ function renderCashflow(){
   });
   barSvg += `</svg>`;
   barEl.innerHTML = barSvg;
+}
+
+// 讓累積結餘趨勢圖可以拖移(滑鼠拖曳或手機滑動),即時顯示該月份的日期與金額
+function setupCumScrub(data, xFor, yFor, padL, padR, W, H){
+  const svg = document.getElementById('cumSvgEl');
+  const overlay = document.getElementById('cumOverlay');
+  if(!svg || !overlay) return;
+  const crosshair = document.getElementById('cumCrosshair');
+  const line = document.getElementById('cumCrosshairLine');
+  const dot = document.getElementById('cumCrosshairDot');
+  const tipBg = document.getElementById('cumTipBg');
+  const tipDate = document.getElementById('cumTipDate');
+  const tipValue = document.getElementById('cumTipValue');
+  const n = data.length;
+  const xStep = n>1 ? (W-padL-padR)/(n-1) : 0;
+
+  function moveTo(clientX){
+    const rect = svg.getBoundingClientRect();
+    const ratio = W / rect.width;
+    const localX = (clientX - rect.left) * ratio;
+    let idx = xStep>0 ? Math.round((localX - padL)/xStep) : 0;
+    idx = Math.max(0, Math.min(n-1, idx));
+    const point = data[idx];
+    const px = xFor(idx), py = yFor(point.cumulative);
+
+    crosshair.style.display = '';
+    line.setAttribute('x1', px); line.setAttribute('x2', px);
+    dot.setAttribute('cx', px); dot.setAttribute('cy', py);
+
+    // 提示框位置:靠近該點,但避免超出圖表左右邊界
+    let boxX = px + 8;
+    if(boxX + 92 > W - padR) boxX = px - 100;
+    let boxY = Math.max(4, py - 40);
+    tipBg.setAttribute('x', boxX); tipBg.setAttribute('y', boxY);
+    tipDate.setAttribute('x', boxX+8); tipDate.setAttribute('y', boxY+13);
+    tipDate.textContent = point.month;
+    tipValue.setAttribute('x', boxX+8); tipValue.setAttribute('y', boxY+27);
+    tipValue.textContent = 'NT$' + fmtMoney(point.cumulative);
+  }
+
+  function hide(){ crosshair.style.display = 'none'; }
+
+  overlay.addEventListener('mousedown', e => { moveTo(e.clientX); });
+  overlay.addEventListener('mousemove', e => { if(e.buttons===1) moveTo(e.clientX); });
+  overlay.addEventListener('mouseenter', e => { moveTo(e.clientX); });
+  overlay.addEventListener('mouseleave', hide);
+  overlay.addEventListener('touchstart', e => { moveTo(e.touches[0].clientX); }, {passive:true});
+  overlay.addEventListener('touchmove', e => { moveTo(e.touches[0].clientX); }, {passive:true});
+  overlay.addEventListener('touchend', hide);
 }
 
 function switchTab(name){
