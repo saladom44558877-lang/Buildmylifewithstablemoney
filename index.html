@@ -1,0 +1,1401 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>資產配置儀表板</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#1b3a4b;
+    --navy-deep:#122733;
+    --teal:#3a8f8c;
+    --teal-soft:#c7e2df;
+    --cream:#f7f4ea;
+    --paper:#fffdf7;
+    --gold:#c99a3c;
+    --red:#b5533f;
+    --ink:#28323a;
+    --line:#dcd4c0;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--cream); color:var(--ink);
+    font-family:'Noto Sans TC',sans-serif;
+    padding-bottom:60px;
+  }
+  header{
+    background:var(--navy); color:var(--paper);
+    padding:22px 20px 28px;
+  }
+  header h1{margin:0; font-size:20px; font-weight:900; letter-spacing:1px;}
+  header p{margin:6px 0 0; font-size:12px; color:var(--teal-soft);}
+  .demo-btn{
+    margin-top:12px; background:var(--gold); color:var(--navy-deep); border:none;
+    border-radius:5px; padding:7px 14px; font-size:12px; font-weight:700; cursor:pointer;
+    font-family:'Noto Sans TC',sans-serif;
+  }
+  .demo-btn:hover{background:#dfb35a;}
+  .demo-banner{
+    background:#f3ecd4; border:1px dashed var(--gold); border-radius:6px; padding:8px 14px;
+    font-size:12px; color:#8a6d1f; margin-bottom:16px; display:none;
+  }
+  .tab-selector-row{
+    display:flex; align-items:center; gap:10px; margin-bottom:18px;
+  }
+  .tab-selector-row label{font-size:12px; color:#7a7362; font-weight:700;}
+  .tab-selector-row select{
+    padding:8px 12px; border:1px solid var(--navy); border-radius:6px; background:var(--paper);
+    color:var(--navy); font-family:'Noto Sans TC',sans-serif; font-size:14px; font-weight:700;
+    cursor:pointer;
+  }
+  .throttle-row{display:flex; align-items:center; gap:14px; margin:10px 0 6px;}
+  .throttle-row input[type="range"]{
+    flex:1; height:6px; border-radius:3px;
+    background:linear-gradient(90deg, #3a8f8c 0%, var(--gold) 55%, var(--red) 100%);
+    -webkit-appearance:none; appearance:none; outline:none;
+  }
+  .throttle-row input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none; width:20px; height:20px; border-radius:50%;
+    background:var(--navy-deep); border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,0.3); cursor:pointer;
+  }
+  .throttle-row input[type="range"]::-moz-range-thumb{
+    width:20px; height:20px; border-radius:50%; background:var(--navy-deep); border:2px solid #fff; cursor:pointer;
+  }
+  .throttle-readout{
+    font-family:'Space Mono',monospace; font-weight:700; font-size:16px; color:var(--navy);
+    min-width:78px; text-align:right;
+  }
+  .throttle-desc{font-size:12px; color:var(--teal); font-weight:700; margin-bottom:10px; min-height:16px;}
+  .wrap{max-width:920px; margin:20px auto 0; padding:0 16px;}
+  .card{
+    background:var(--paper); border:1px solid var(--line); border-radius:10px;
+    padding:18px 20px; margin-bottom:16px; box-shadow:0 2px 10px rgba(18,39,51,0.06);
+  }
+  .section-title{
+    font-size:13px; font-weight:700; color:var(--navy);
+    display:flex; align-items:center; gap:8px; margin-bottom:14px;
+    text-transform:uppercase; letter-spacing:1px;
+  }
+  .section-title .num{
+    background:var(--teal); color:#fff; font-family:'Space Mono',monospace;
+    font-size:11px; padding:2px 7px; border-radius:4px;
+  }
+  .summary-row{display:flex; gap:14px; flex-wrap:wrap;}
+  .summary-box{flex:1; min-width:140px; background:var(--navy-deep); color:#fff; border-radius:8px; padding:14px 16px;}
+  .summary-box .label{font-size:11px; color:var(--teal-soft); margin-bottom:4px;}
+  .summary-box .value{font-family:'Space Mono',monospace; font-size:22px; font-weight:700;}
+  .summary-box .value.small{font-size:16px;}
+  .pos{color:#7cd6b0 !important;}
+  .neg{color:#e59a8a !important;}
+ 
+  /* 配置象限 */
+  .quad-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px;}
+  .quad-cell{
+    border:1px solid var(--line); border-radius:8px; padding:12px 14px; background:#fdfcf6;
+  }
+  .quad-cell .cat-label{font-size:11px; color:#7a7362; margin-bottom:2px;}
+  .quad-cell .sub-label{font-size:14px; font-weight:700; color:var(--navy); margin-bottom:8px;}
+  .quad-cell .pct-row{display:flex; justify-content:space-between; font-family:'Space Mono',monospace; font-size:12px; margin-bottom:6px;}
+  .bar-track{height:8px; background:#eee6d2; border-radius:4px; overflow:hidden; position:relative; margin-bottom:6px;}
+  .bar-fill{height:100%; background:var(--teal); border-radius:4px;}
+  .bar-target-mark{position:absolute; top:-2px; width:2px; height:12px; background:var(--gold);}
+  .diff-tag{font-size:11px; font-family:'Space Mono',monospace; padding:2px 6px; border-radius:4px; display:inline-block;}
+  .diff-over{background:#f3ded9; color:var(--red);}
+  .diff-under{background:#d7e9e7; color:var(--teal);}
+  .diff-ok{background:#eee6d2; color:#7a7362;}
+  .info-box{
+    background:var(--teal-soft); border-left:3px solid var(--teal); border-radius:6px;
+    padding:12px 14px; font-size:12px; line-height:1.8; margin-bottom:14px; color:var(--navy-deep);
+  }
+  .info-box b{color:var(--navy);}
+  .band-tag{font-size:10px; font-family:'Space Mono',monospace; color:#9a927c; margin-left:6px;}
+  .action-needed{color:var(--red); font-weight:700;}
+  .action-ok{color:#7a7362;}
+  .chart-svg{width:100%; height:auto; display:block;}
+  .chart-tooltip-label{font-family:'Space Mono',monospace; font-size:9px; fill:#7a7362;}
+  .chart-empty{font-size:12px; color:#9a927c; padding:20px 0; text-align:center;}
+ 
+  table{width:100%; border-collapse:collapse; font-size:12px;}
+  th{text-align:left; color:#7a7362; font-weight:700; padding:6px 8px; border-bottom:1px solid var(--line); font-size:11px; text-transform:uppercase;}
+  td{padding:8px 8px; border-bottom:1px solid #eee6d2; font-family:'Space Mono',monospace;}
+  td.name{font-family:'Noto Sans TC',sans-serif;}
+ 
+  .rebal-note{font-size:11px; color:#7a7362; margin-top:10px; line-height:1.6;}
+ 
+  form.tx-form{display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; align-items:end;}
+  .field label{display:block; font-size:11px; color:#7a7362; margin-bottom:4px;}
+  .field input, .field select{
+    width:100%; padding:8px; border:1px solid var(--line); border-radius:5px; font-family:'Noto Sans TC',sans-serif; font-size:13px; background:#fff;
+  }
+  .submit-btn{
+    background:var(--navy); color:#fff; border:none; border-radius:5px; padding:9px 16px;
+    font-family:'Noto Sans TC',sans-serif; font-size:13px; cursor:pointer; height:38px;
+  }
+  .submit-btn:hover{background:var(--navy-deep);}
+  .status-msg{font-size:12px; margin-top:8px;}
+ 
+  .refresh-btn{
+    background:none; border:1px solid var(--teal); color:var(--teal); border-radius:5px;
+    padding:5px 10px; font-size:11px; cursor:pointer; margin-left:auto;
+  }
+  .help-box{margin-top:14px; font-size:12px;}
+  .help-box summary{cursor:pointer; color:var(--teal); font-weight:700;}
+  pre{
+    background:var(--navy-deep); color:#cfe8e5; padding:14px; border-radius:6px;
+    overflow-x:auto; font-size:11px; line-height:1.5; max-height:400px;
+  }
+  .target-input{width:60px; text-align:right; font-family:'Space Mono',monospace; border:1px solid var(--line); border-radius:4px; padding:2px 4px;}
+  .tx-edit-input, .tx-edit-select{
+    width:100%; min-width:70px; padding:4px 6px; border:1px solid var(--line); border-radius:4px;
+    font-family:'Noto Sans TC',sans-serif; font-size:12px; background:#fff;
+  }
+  .row-btn{
+    border:none; border-radius:4px; padding:4px 9px; font-size:11px; cursor:pointer;
+    font-family:'Noto Sans TC',sans-serif; margin-right:4px;
+  }
+  .row-btn.save{background:var(--teal); color:#fff;}
+  .row-btn.delete{background:var(--red); color:#fff;}
+  .row-btn.cancel{background:#eee6d2; color:#7a7362;}
+  .rebal-action-list{margin-bottom:16px;}
+  .rebal-action-item{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:10px 14px; border-radius:8px; margin-bottom:8px; font-size:13px;
+  }
+  .rebal-action-item.buy{background:#e3f1ef; border-left:3px solid var(--teal);}
+  .rebal-action-item.sell{background:#f8ece8; border-left:3px solid var(--red);}
+  .rebal-action-item .ra-name{font-weight:700; color:var(--navy);}
+  .rebal-action-item .ra-amount{font-family:'Space Mono',monospace; font-weight:700;}
+  .rebal-action-item.buy .ra-amount{color:var(--teal);}
+  .rebal-action-item.sell .ra-amount{color:var(--red);}
+  .rebal-all-ok{font-size:13px; color:#7a7362; padding:10px 0;}
+  .gauge-row{display:flex; flex-wrap:wrap; gap:16px; margin-bottom:16px; justify-content:center;}
+  .gauge-box{text-align:center; min-width:200px;}
+  .gauge-box .gauge-label{font-size:12px; color:#7a7362; font-weight:700; margin-top:4px;}
+  .gauge-box .gauge-value{font-family:'Space Mono',monospace; font-size:22px; font-weight:900; margin-top:2px;}
+  .gauge-box .gauge-status{font-size:11px; margin-top:2px; font-weight:700;}
+  footer{max-width:920px; margin:20px auto; padding:0 16px; font-size:11px; color:#9a927c; text-align:center;}
+</style>
+</head>
+<body>
+ 
+<header>
+  <h1>資產配置儀表板</h1>
+  <p>股票 / 債券 / 現金 兩層式配置象限 &nbsp;·&nbsp; 交易登記自動抓價 &nbsp;·&nbsp; 再平衡輔助</p>
+  <button class="demo-btn" style="background:var(--teal-soft); color:var(--navy-deep);" onclick="promptForToken()">🔑 設定/更新權杖</button>
+</header>
+ 
+<div class="wrap">
+ 
+  <div class="demo-banner" id="tokenBanner" style="display:flex; align-items:center; justify-content:space-between; gap:10px;"></div>
+ 
+  <div class="demo-banner" id="fetchErrorBanner" style="display:none; align-items:center; justify-content:space-between; gap:10px; background:#f8ece8; border-color:var(--red); color:var(--red);"></div>
+ 
+  <div class="tab-selector-row">
+    <label for="tabSelector">檢視:</label>
+    <select id="tabSelector" onchange="switchTab(this.value)">
+      <option value="alloc">資產配置與交易</option>
+      <option value="finance">財務分析</option>
+    </select>
+  </div>
+ 
+  <div id="tab-alloc" class="tab-panel">
+ 
+  <div class="card">
+    <div class="section-title">🎚️ 風險油門(時速)</div>
+    <div class="info-box">
+      拖動滑桿快速套用一組建議配置,會直接覆蓋下面「配置象限」目前設定的目標%(套用後仍可在下面個別微調)。<br>
+      <b>時速10</b>:保守 —— 較多公債、AAA公司債,股票以美股/台股大盤為主,幾乎不碰主題衛星。<br>
+      <b>時速70</b>:均衡(等於你原本設定的 股票70%/債券20%/現金10%)—— 較少債券、更多股票。<br>
+      <b>時速90以上</b>:積極 —— 股票與衛星部位大幅提高,債券降到最低,建議搭配槓桿工具(例如2倍槓桿ETF)增加曝險,而不是單純把現金部位歸零。
+    </div>
+    <div class="throttle-row">
+      <input type="range" id="throttleSlider" min="10" max="100" step="5" value="70" oninput="onThrottleInput(this.value)">
+      <div class="throttle-readout" id="throttleReadout">時速 70</div>
+    </div>
+    <div class="throttle-desc" id="throttleDesc"></div>
+    <div class="rebal-note">這只是快速套用的起點,實際配置還是要考慮你自己的風險承受度、投資期限和現有部位,套用後記得檢查一次下面每個細項的目標% 是否合理。</div>
+  </div>
+ 
+  <div class="card">
+    <div class="summary-row" id="summaryRow">
+      <div class="summary-box"><div class="label">總資產市值</div><div class="value" id="totalValue">--</div></div>
+      <div class="summary-box"><div class="label">總成本</div><div class="value small" id="totalCost">--</div></div>
+      <div class="summary-box"><div class="label">未實現損益</div><div class="value" id="totalPnl">--</div></div>
+      <div class="summary-box"><div class="label">整體報酬率</div><div class="value" id="totalReturn">--</div></div>
+    </div>
+  </div>
+ 
+  <div class="card">
+    <div class="section-title"><span class="num">01</span> 配置象限(目前 vs 目標)
+      <button class="refresh-btn" onclick="loadAll()">重新整理</button>
+    </div>
+    <div class="quad-grid" id="quadGrid"></div>
+    <div class="rebal-note">灰線 = 目標配置位置。長條超過灰線 = 超配(可考慮減碼);未達灰線 = 低配(可考慮加碼)。目標% 可直接點數字修改，會存在本機。</div>
+  </div>
+ 
+  <div class="card">
+    <div class="section-title"><span class="num">02</span> 再平衡建議</div>
+    <div class="info-box">
+      <b>依據《投資金律 The Four Pillars of Investing》的再平衡原則:</b><br>
+      1. 再平衡是紀律,不是預測 —— 定期(建議每年至少一次)把配置拉回目標,而不是猜測市場高低點。<br>
+      2. 用「5/25 法則」判斷要不要動作:當某細項的實際比重,偏離目標<b>超過 5 個百分點</b>,<b>或超過目標值的 25%</b>(取較嚴格者),才需要再平衡 —— 避免為了小幅波動而過度交易、產生不必要的稅務與手續費成本。<br>
+      3. 再平衡本質是「賣掉表現好的、買進落後的」,反直覺但長期能維持你設定的風險水準,不會讓某一類資產因為漲多了而佔比失控。<br>
+      4. 加碼/減碼的金額 = 總資產 × 目標% − 目前金額。5/25法則只是用來判斷「要不要顯示為需要動作」,金額本身固定用這個公式計算。
+    </div>
+    <div id="rebalActionList"></div>
+    <table>
+      <thead><tr><th>細項</th><th>目前市值</th><th>目前%</th><th>目標%</th><th>容許區間</th><th>狀態</th><th>建議動作</th></tr></thead>
+      <tbody id="rebalBody"></tbody>
+    </table>
+  </div>
+ 
+  <div class="card">
+    <div class="section-title"><span class="num">03</span> 持股明細</div>
+    <table>
+      <thead><tr><th>代號</th><th>細項</th><th>股數</th><th>成本</th><th>現價</th><th>市值</th><th>報酬率</th></tr></thead>
+      <tbody id="holdingsBody"></tbody>
+    </table>
+  </div>
+ 
+  <div class="card">
+    <div class="section-title"><span class="num">04</span> 交易登記</div>
+    <form class="tx-form" id="txForm" onsubmit="return submitTx(event)">
+      <div class="field"><label>交易日期</label><input type="date" id="txDate" required></div>
+      <div class="field"><label>代號 Ticker</label><input type="text" id="txTicker" placeholder="例如 VOO / 0050" required></div>
+      <div class="field"><label>大類</label>
+        <select id="txCategory" onchange="updateSubOptions()">
+          <option value="股票">股票</option>
+          <option value="債券">債券</option>
+          <option value="現金">現金</option>
+        </select>
+      </div>
+      <div class="field"><label>細項</label>
+        <select id="txSub"></select>
+      </div>
+      <div class="field"><label>數量</label><input type="number" id="txQty" step="0.0001" required></div>
+      <div class="field"><button type="submit" class="submit-btn">登記送出</button></div>
+    </form>
+    <div class="status-msg" id="txStatus"></div>
+ 
+    <div style="margin-top:20px; padding-top:16px; border-top:1px solid var(--line);">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+        <div style="font-size:12px; color:#7a7362; font-weight:700;">已登記的交易(可編輯 / 刪除)</div>
+        <button class="refresh-btn" onclick="loadAll()">重新整理</button>
+      </div>
+      <table>
+        <thead><tr><th>交易日期</th><th>代號</th><th>大類</th><th>細項</th><th>數量</th><th>操作</th></tr></thead>
+        <tbody id="txListBody"></tbody>
+      </table>
+      <div class="status-msg" id="txListStatus"></div>
+    </div>
+ 
+    <details class="help-box">
+      <summary>查看 Google Sheet 設定教學、Google 表單設定與 Apps Script 程式碼(第一次使用請展開)</summary>
+      <div style="margin-top:10px; line-height:1.8;">
+        <b>Step 1</b> — 在你原本的 Google Sheet 裡新增兩個分頁,分頁名稱與欄位必須完全一致:<br><br>
+        <b>分頁「交易登記」</b>,A1:H1 填入標題列(A欄是登記時間戳記,跟Google表單的輸出格式對齊,方便你之後也能用手機表單登記):<br>
+        <code>時間戳記 | 交易日期 | 代號 | 大類 | 細項 | 數量 | 買入價 | 成本</code><br>
+        G2 公式(往下拉到所有列):<br>
+        <code>=IFERROR(INDEX(GOOGLEFINANCE(C2,"close",B2,B2+1),2,2),"")</code><br>
+        H2 公式:<code>=F2*G2</code><br><br>
+ 
+        <b>分頁「資產總表」</b>,A1:I1 標題列:<br>
+        <code>代號 | 大類 | 細項 | 股數 | 總成本 | 現價 | 市值 | 損益 | 報酬率</code><br>
+        A2:<code>=IFERROR(UNIQUE(FILTER(交易登記!C2:C,交易登記!C2:C&lt;&gt;"")),"")</code><br>
+        B2:<code>=IFERROR(INDEX(交易登記!D:D,MATCH(A2,交易登記!C:C,0)),"")</code><br>
+        C2:<code>=IFERROR(INDEX(交易登記!E:E,MATCH(A2,交易登記!C:C,0)),"")</code><br>
+        D2:<code>=SUMIF(交易登記!C:C,A2,交易登記!F:F)</code><br>
+        E2:<code>=SUMIF(交易登記!C:C,A2,交易登記!H:H)</code><br>
+        F2:<code>=IFERROR(GOOGLEFINANCE(A2,"price"),"")</code><br>
+        G2:<code>=D2*F2</code>　H2:<code>=G2-E2</code>　I2:<code>=IFERROR(H2/E2,"")</code><br>
+        (B2:I2 往下拖曳填滿即可,A欄用 UNIQUE 自動展開)<br><br>
+ 
+        <b>分頁「收支明細」</b>(手動貼上 Money Manager 匯出的資料),A1:F1 標題列:<br>
+        <code>日期 | 類型 | 類別 | 金額 | 備註 | 月份</code><br>
+        F2 公式(自動算出年月,往下拉到所有列):<code>=IFERROR(TEXT(A2,"yyyy-mm"),"")</code><br>
+        「類型」欄請確保內容統一是「收入」或「支出」兩種文字——Money Manager 匯出的 Excel 通常會有日期/類別/金額/收支類型欄位,把對應欄位複製貼過來時,如果它匯出的是英文(Income/Expense)或其他寫法,記得先用 Sheet 的「尋找及取代」統一改成「收入」「支出」,公式才抓得到。<br>
+        「財務分析」分頁裡的「記一筆收支」小工具,寫入的就是這個分頁,月份欄會直接算好寫入(不用手動拉公式)。<br><br>
+ 
+        <b>分頁「月度現金流總表」</b>(自動彙總,不用手動維護),A1:E1 標題列:<br>
+        <code>月份 | 收入合計 | 支出合計 | 淨結餘 | 累積結餘</code><br>
+        A2:<code>=IFERROR(SORT(UNIQUE(FILTER(收支明細!F2:F,收支明細!F2:F&lt;&gt;""))),"")</code><br>
+        B2:<code>=SUMIFS(收支明細!D:D,收支明細!F:F,A2,收支明細!B:B,"收入")</code><br>
+        C2:<code>=SUMIFS(收支明細!D:D,收支明細!F:F,A2,收支明細!B:B,"支出")</code><br>
+        D2:<code>=B2-C2</code><br>
+        E2:<code>=SUM($D$2:D2)</code>(累積結餘,往下拉時範圍會自動累加)<br>
+        (B2:E2 往下拖曳填滿即可,A欄用 SORT+UNIQUE 自動展開並依時間排序)<br><br>
+ 
+        <b>分頁「資產快照歷史」</b>(全自動,不用手動填,由儀表板上的「記錄本月快照」按鈕自動寫入),A1:E1 標題列:<br>
+        <code>快照日期 | 總資產 | 股票市值 | 債券市值 | 現金</code><br>
+        這個分頁不用你手動輸入公式,每次點按鈕就會自動新增一列。建議每月固定一天點一次,累積幾個月後「財富自由指標」卡片就會畫出真實的資產成長曲線。<br><br>
+ 
+        <b>Step 2</b> — 擴充功能 → Apps Script,把下面整段程式碼貼上(會同時支援你原本的登記紀錄 + 新的交易登記/資產總表讀取),存檔後「部署 → 新增部署作業」→ 網頁應用程式 → 執行身份:我 / 誰可以存取:任何人。<br><br>
+        <b>Step 3</b> — 設定安全性權杖(改成用「指令碼屬性」存放,不寫死在程式碼裡,避免程式碼一被看到就外洩):Apps Script 編輯器左側齒輪圖示「專案設定」→ 捲到底部「指令碼屬性」→ 新增屬性,名稱填 <code>SECRET_TOKEN</code>,值填一組你自訂的隨機字串(建議 20 字元以上,例如密碼產生器產生的亂碼),儲存後重新部署。<br><br>
+        <b style="color:var(--red)">重要</b>:填入真實 token 之後的 Apps Script 程式碼,不要貼到聊天視窗、公開論壇或任何地方——那等同於把密碼打出來。<br><br>
+        <b>Step 4</b> — 部署完成拿到 <code>/exec</code> 網址後,把網址和你設定的 token 都告訴我,我會幫你寫進這個頁面的 <code>SHEET_WEBAPP_URL</code> 和 <code>SECRET_TOKEN</code>。<br><br>
+        <b style="color:var(--red)">安全性提醒</b>:網址 + token 等同於你資產資料的密碼,請不要把這個 HTML 檔案上傳到公開網站或分享給不信任的人;若曾經外洩,直接改一組新的 token 並重新部署即可失效舊的存取權。<br><br>
+ 
+        <b>【選用】用 Google 表單登記交易(比開網頁更適合手機快速輸入)</b><br>
+        如果你想直接用手機的 Google 表單 App 登記交易,不透過這個網頁,可以這樣設定:<br>
+        1. 前往 forms.google.com 建立新表單,依序新增以下題目(題目名稱和型態要對應,順序也要一致):<br>
+        &nbsp;&nbsp;① <code>交易日期</code> —— 題型選「日期」<br>
+        &nbsp;&nbsp;② <code>代號</code> —— 題型選「簡答」,可加驗證「內容長度」限制1-15字<br>
+        &nbsp;&nbsp;③ <code>大類</code> —— 題型選「單選」,選項:股票 / 債券 / 現金<br>
+        &nbsp;&nbsp;④ <code>細項</code> —— 題型選「單選」,選項全部列出:美股核心 / 台股核心 / 主題衛星 / 區域型 / 公債 / 公司債 / 現金(表單不支援依大類篩選細項選項,除非用「根據答案跳轉至指定分節」設計3個分節,每個大類各自跳到只列出對應細項的分節,比較進階但可行)<br>
+        &nbsp;&nbsp;⑤ <code>數量</code> —— 題型選「簡答」,回應驗證選「數字」大於0<br>
+        2. 表單右上角「回覆」分頁 → 點 Google Sheets 圖示 → 選擇「選取現有試算表」→ 選你這份資產試算表。表單會自動建立一個新分頁(預設名稱通常是「表單回應 1」),欄位順序是:<code>時間戳記 | 交易日期 | 代號 | 大類 | 細項 | 數量</code>。<br>
+        3. 把這個自動產生的分頁直接改名為「交易登記」(或把它的資料複製貼到你手動建立的「交易登記」分頁對應欄位),確保欄位順序跟上面 Step 1 的表格一致,再把 G、H 兩欄的公式往下拉到新增的每一列即可自動算出買入價和成本。<br>
+        這樣一來,手機上用 Google 表單登記,電腦上用這個儀表板網頁登記,兩邊都會寫進同一個「交易登記」分頁,資料格式完全相容。</div>
+      <pre id="appsScriptCode"></pre>
+    </details>
+  </div>
+ 
+  </div>
+ 
+  <div id="tab-finance" class="tab-panel" style="display:none;">
+ 
+  <div class="card">
+    <div class="section-title"><span class="num">01</span> 現金流量(來自 Money Manager 匯出)</div>
+    <div class="summary-row" id="cashflowSummary" style="margin-bottom:16px;"></div>
+    <div style="margin-bottom:8px; font-size:12px; color:#7a7362; font-weight:700;">累積結餘趨勢</div>
+    <div id="cumulativeChart" style="margin-bottom:20px;"></div>
+    <div style="margin-bottom:8px; font-size:12px; color:#7a7362; font-weight:700;">每月收支結餘(綠色=淨收入 紅色=淨支出)</div>
+    <div id="netBarChart"></div>
+  </div>
+ 
+  <div class="card">
+    <div class="section-title"><span class="num">02</span> 財富自由指標</div>
+    <div class="info-box">
+      <b>算法說明:</b><br>
+      1. <b>資產累積斜率</b> —— 優先用「資產快照歷史」的月度總資產做線性迴歸(真實反映市場漲跌);快照筆數不足 2 筆時,才暫用現金流量的「累積結餘」當代理指標(只反映儲蓄速度,不含市場報酬)。<br>
+      2. <b>FIRE 目標資產</b> —— 用 4% 法則:年金額 ÷ 4% = 需要的資產規模。這裡同時給你兩個版本:「依支出」是你財務自由後要覆蓋生活費所需的資產;「依儲蓄」是把你目前的月均結餘能力換算成等值資產規模(比較少見的算法,給你自己比較用)。<br>
+      3. <b>財富自由比率</b> = 你目前的總資產 ÷ FIRE 目標資產,100% 代表已達成。<br>
+      4. <b>所得替代率</b> = (目前總資產 × 4%) ÷ 你的年化收入。意思是「如果現在退休、每年只從資產提領4%,這筆錢能替代你目前收入的百分之多少」——這是退休規劃常用的指標,100% 代表資產已經能完全取代你目前的收入水準。<br>
+      5. 下面兩個儀表:紅色(&lt;50%)= 危險,離目標還很遠;黃色(50%~90%)= 注意,持續累積中;綠色(≥90%)= 安全,已經達成或接近目標。
+    </div>
+    <div class="gauge-row" id="fiGaugeRow"></div>
+    <div class="summary-row" id="fiSummary" style="margin-bottom:14px;"></div>
+    <table>
+      <thead><tr><th></th><th>依月均支出</th><th>依月均淨結餘</th></tr></thead>
+      <tbody id="fiTableBody"></tbody>
+    </table>
+ 
+    <div style="margin-top:20px; padding-top:16px; border-top:1px solid var(--line);">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:8px;">
+        <div style="font-size:12px; color:#7a7362; font-weight:700;">真實資產成長曲線(來自手動快照)</div>
+        <button class="submit-btn" style="height:auto; padding:7px 14px;" onclick="recordSnapshot()">📸 記錄本月快照</button>
+      </div>
+      <div class="status-msg" id="snapshotStatus"></div>
+      <div id="netWorthChart" style="margin-top:10px;"></div>
+      <div class="rebal-note">建議每月固定一天(例如發薪日或月初)點一次「記錄本月快照」,把當下總資產寫入歷史記錄。累積幾個月後,這裡會畫出含市場漲跌在內的真實淨值成長曲線,取代上面用現金流估算的代理指標。</div>
+    </div>
+  </div>
+ 
+  </div>
+ 
+</div>
+ 
+<footer>此儀表板讀取的持股市值與現價,來源是你 Google Sheet 裡「資產總表」分頁的 GOOGLEFINANCE 計算結果;目標配置%儲存在本頁面的個人儲存空間。</footer>
+ 
+<script>
+// ============ 設定區 ============
+const SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwQZ233hg9vuEvqWI1d60kj5q7K7DTi_BwaQGHZ_Br0cdLaDtbGLpGl3NWX2MhYUyNgOw/exec"; // 已填入你部署的網址
+ 
+// 安全性權杖:不寫死在檔案裡,改成存在「你這台裝置瀏覽器」的 localStorage。
+// 這樣就算這個 HTML 檔案被公開發布(例如放上 GitHub Pages),檔案本身也不含任何機密——
+// 權杖只存在於你自己輸入過的瀏覽器裡,其他人打開同一個網址不會自動拿到你的權杖。
+let SECRET_TOKEN = localStorage.getItem('assetDashboardToken') || '';
+ 
+function promptForToken(){
+  const input = prompt('請輸入你的安全性權杖(跟 Apps Script 指令碼屬性裡的 SECRET_TOKEN 完全一致):', SECRET_TOKEN);
+  if(input !== null){
+    SECRET_TOKEN = input.trim();
+    localStorage.setItem('assetDashboardToken', SECRET_TOKEN);
+    updateTokenBanner();
+    loadAll();
+  }
+}
+ 
+function updateTokenBanner(){
+  const el = document.getElementById('tokenBanner');
+  if(!el) return;
+  if(!SECRET_TOKEN){
+    el.style.display = 'flex';
+    el.innerHTML = `⚠️ 尚未設定安全性權杖,無法讀取真實資料。<button class="row-btn save" onclick="promptForToken()">設定權杖</button>`;
+  } else {
+    el.style.display = 'none';
+  }
+}
+ 
+const CATEGORY_TREE = {
+  "股票": ["美股核心","台股核心","主題衛星","區域型"],
+  "債券": ["公債","公司債"],
+  "現金": ["現金"]
+};
+ 
+const DEFAULT_TARGETS = {
+  "美股核心": 0.35, "台股核心": 0.21, "主題衛星": 0.105, "區域型": 0.035,
+  "公債": 0.15, "公司債": 0.05,
+  "現金": 0.10
+};
+ 
+// 風險油門(時速)三個錨點,中間用線性內插自動算出目標%
+// 時速70 = 你原本設定的 股票70%/債券20%/現金10%(等同 DEFAULT_TARGETS)
+const THROTTLE_ANCHORS = {
+  10:  { "美股核心":0.20, "台股核心":0.05, "主題衛星":0.00, "區域型":0.05, "公債":0.50, "公司債":0.10, "現金":0.10 },
+  70:  { ...DEFAULT_TARGETS },
+  100: { "美股核心":0.45, "台股核心":0.25, "主題衛星":0.15, "區域型":0.05, "公債":0.05, "公司債":0.00, "現金":0.05 }
+};
+ 
+function computeThrottleTargets(speed){
+  speed = Math.max(10, Math.min(100, Number(speed)));
+  let lo=10, hi=70;
+  if(speed>70){ lo=70; hi=100; }
+  const t = (speed-lo)/(hi-lo);
+  const a = THROTTLE_ANCHORS[lo], b = THROTTLE_ANCHORS[hi];
+  const result = {};
+  Object.keys(DEFAULT_TARGETS).forEach(k=>{
+    result[k] = a[k] + (b[k]-a[k])*t;
+  });
+  return result;
+}
+ 
+function throttleDescription(speed){
+  if(speed<=25) return '保守:公債+AAA公司債為主,股票偏美股/台股大盤';
+  if(speed<70) return '偏保守到均衡之間,逐步加碼股票、降低債券比重';
+  if(speed===70) return '均衡(等於原本 股票70%/債券20%/現金10% 設定)';
+  if(speed<90) return '偏積極:股票與衛星部位增加,債券持續降低';
+  return '積極:股票與衛星部位大,債券降到最低 —— 建議搭配槓桿工具(如2倍槓桿ETF)增加曝險,而不是把現金也歸零';
+}
+ 
+function onThrottleInput(speed){
+  speed = Number(speed);
+  document.getElementById('throttleReadout').textContent = '時速 '+speed;
+  document.getElementById('throttleDesc').textContent = throttleDescription(speed);
+  targets = computeThrottleTargets(speed);
+  saveTargets();
+  render();
+}
+ 
+let targets = {...DEFAULT_TARGETS};
+let holdings = []; // {ticker,category,sub,qty,cost,price,value,returnPct}
+let cashValue = 0;
+let monthlyCashflow = []; // {month, income, expense, net, cumulative}
+let assetSnapshots = []; // {date, total, stock, bond, cash} 手動記錄的每月資產快照
+let transactions = []; // {row, date, ticker, category, sub, qty} 交易登記分頁的原始列,row是Sheet列號(供編輯/刪除用)
+let txEditingRow = null; // 目前正在編輯中的列號
+ 
+const APPS_SCRIPT_CODE = `// 安全性權杖存放在「指令碼屬性」,不寫死在程式碼裡,避免只要有人看到這份程式碼就外洩。
+// 設定方式:Apps Script 編輯器左側齒輪圖示「專案設定」→ 捲到底部「指令碼屬性」→ 新增屬性
+// 屬性名稱填:SECRET_TOKEN,值填一組你自訂的隨機字串(20字元以上),跟網頁裡的 SECRET_TOKEN 完全一致。
+ 
+function getSecretToken_() {
+  return PropertiesService.getScriptProperties().getProperty('SECRET_TOKEN') || '';
+}
+ 
+function checkToken_(token) {
+  var secret = getSecretToken_();
+  return !!secret && token === secret;
+}
+ 
+// 防止公式注入:若字串以 = + - @ 開頭,前面補一個單引號讓 Sheet 當純文字處理
+function sanitizeCell_(v) {
+  if (typeof v === 'string' && /^[=+\\-@]/.test(v)) {
+    return "'" + v;
+  }
+  return v;
+}
+ 
+// 驗證日期字串格式(yyyy-mm-dd),避免繞過網頁直接呼叫API塞入奇怪的日期
+function validDate_(d) {
+  return typeof d === 'string' && /^\\d{4}-\\d{2}-\\d{2}$/.test(d);
+}
+ 
+function doGet(e) {
+  if (!checkToken_(e.parameter.token)) {
+    return ContentService.createTextOutput(JSON.stringify({error: 'unauthorized'}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+ 
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+ 
+  // 讀取資產總表(股票/債券持股)
+  var assetSheet = ss.getSheetByName('資產總表');
+  var holdings = [];
+  if (assetSheet) {
+    var data = assetSheet.getDataRange().getValues();
+    for (var i = 1; i < data.length; i++) {
+      var row = data[i];
+      if (!row[0]) continue;
+      holdings.push({
+        ticker: row[0], category: row[1], sub: row[2],
+        qty: row[3], cost: row[4], price: row[5],
+        value: row[6], pnl: row[7], returnPct: row[8]
+      });
+    }
+  }
+ 
+  // 讀取登記紀錄(現金帳戶),取最新一列加總
+  var cashSheet = ss.getSheetByName('登記紀錄');
+  var cashTotal = 0;
+  if (cashSheet) {
+    var cdata = cashSheet.getDataRange().getValues();
+    if (cdata.length > 1) {
+      var lastRow = cdata[cdata.length - 1];
+      for (var j = 1; j < lastRow.length; j++) {
+        cashTotal += Number(lastRow[j]) || 0;
+      }
+    }
+  }
+ 
+  // 讀取月度現金流總表
+  var cfSheet = ss.getSheetByName('月度現金流總表');
+  var monthlyCashflow = [];
+  if (cfSheet) {
+    var cfData = cfSheet.getDataRange().getValues();
+    for (var k = 1; k < cfData.length; k++) {
+      var cfRow = cfData[k];
+      if (!cfRow[0]) continue;
+      monthlyCashflow.push({
+        month: cfRow[0], income: cfRow[1], expense: cfRow[2],
+        net: cfRow[3], cumulative: cfRow[4]
+      });
+    }
+  }
+ 
+  // 讀取資產快照歷史(手動記錄的每月總資產,用來畫真實成長曲線)
+  var snapSheet = ss.getSheetByName('資產快照歷史');
+  var assetSnapshots = [];
+  if (snapSheet) {
+    var snapData = snapSheet.getDataRange().getValues();
+    for (var s = 1; s < snapData.length; s++) {
+      var snapRow = snapData[s];
+      if (!snapRow[0]) continue;
+      var d = snapRow[0];
+      var dateStr = (d instanceof Date) ? Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd') : String(d);
+      assetSnapshots.push({
+        date: dateStr, total: snapRow[1], stock: snapRow[2], bond: snapRow[3], cash: snapRow[4]
+      });
+    }
+  }
+ 
+  // 讀取交易登記的原始列(含Sheet列號,供網頁編輯/刪除使用)
+  var txSheet = ss.getSheetByName('交易登記');
+  var transactions = [];
+  if (txSheet) {
+    var txData = txSheet.getDataRange().getValues();
+    for (var t = 1; t < txData.length; t++) {
+      var txRow = txData[t];
+      if (!txRow[2]) continue; // C欄代號空白代表這列沒有資料
+      var txDate = txRow[1];
+      var txDateStr = (txDate instanceof Date) ? Utilities.formatDate(txDate, Session.getScriptTimeZone(), 'yyyy-MM-dd') : String(txDate);
+      transactions.push({
+        row: t + 1, // 實際 Sheet 列號(1-indexed,+1因為t從1開始對應第2列)
+        date: txDateStr, ticker: txRow[2], category: txRow[3], sub: txRow[4], qty: txRow[5]
+      });
+    }
+  }
+ 
+  var result = { holdings: holdings, cash: cashTotal, monthlyCashflow: monthlyCashflow, assetSnapshots: assetSnapshots, transactions: transactions };
+  return ContentService.createTextOutput(JSON.stringify(result))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+ 
+var CATEGORY_TREE_ = {
+  '股票': ['美股核心','台股核心','主題衛星','區域型'],
+  '債券': ['公債','公司債'],
+  '現金': ['現金']
+};
+ 
+function validateTxInput_(ticker, qty, category, sub, date) {
+  var validCategories = ['股票','債券','現金'];
+  if (!/^[A-Za-z0-9.\-]{1,15}$/.test(ticker)) return 'invalid ticker';
+  if (isNaN(qty) || qty <= 0 || qty > 1000000) return 'invalid qty';
+  if (validCategories.indexOf(category) === -1) return 'invalid category';
+  if (!CATEGORY_TREE_[category] || CATEGORY_TREE_[category].indexOf(sub) === -1) return 'invalid sub';
+  if (!validDate_(date)) return 'invalid date';
+  return null;
+}
+ 
+function doPost(e) {
+  var body = JSON.parse(e.postData.contents);
+ 
+  if (!checkToken_(body.token)) {
+    return ContentService.createTextOutput(JSON.stringify({error: 'unauthorized'}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+ 
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+ 
+  if (body.type === 'transaction') {
+    // 驗證輸入格式,拒絕不合理的資料
+    var ticker = String(body.ticker || '');
+    var qty = Number(body.qty);
+    var err = validateTxInput_(ticker, qty, body.category, body.sub, body.date);
+    if (err) {
+      return ContentService.createTextOutput(JSON.stringify({error: err}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    var sheet = ss.getSheetByName('交易登記');
+    sheet.appendRow([
+      new Date(), sanitizeCell_(body.date), sanitizeCell_(ticker),
+      sanitizeCell_(body.category), sanitizeCell_(body.sub), qty
+    ]);
+    // G,H 欄(買入價/成本)已在該列的公式範本自動計算,若新列沒公式需手動下拉填滿一次
+  } else if (body.type === 'updateTransaction') {
+    // 編輯既有交易列(B~F欄),不動A欄時間戳記,也不動G/H公式
+    var uTicker = String(body.ticker || '').toUpperCase();
+    var uQty = Number(body.qty);
+    var uErr = validateTxInput_(uTicker, uQty, body.category, body.sub, body.date);
+    if (uErr) {
+      return ContentService.createTextOutput(JSON.stringify({error: uErr}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    var txSheetEdit = ss.getSheetByName('交易登記');
+    var row = Number(body.row);
+    if (isNaN(row) || row < 2 || row > txSheetEdit.getLastRow()) {
+      return ContentService.createTextOutput(JSON.stringify({error: 'invalid row'}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    txSheetEdit.getRange(row, 2, 1, 5).setValues([[
+      sanitizeCell_(body.date), sanitizeCell_(uTicker),
+      sanitizeCell_(body.category), sanitizeCell_(body.sub), uQty
+    ]]);
+  } else if (body.type === 'deleteTransaction') {
+    var txSheetDel = ss.getSheetByName('交易登記');
+    var delRow = Number(body.row);
+    if (isNaN(delRow) || delRow < 2 || delRow > txSheetDel.getLastRow()) {
+      return ContentService.createTextOutput(JSON.stringify({error: 'invalid row'}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    txSheetDel.deleteRow(delRow);
+  } else if (body.type === 'snapshot') {
+    // 記錄本月資產快照,驗證都是合理數字才寫入
+    var total = Number(body.total), stock = Number(body.stock), bond = Number(body.bond), cash = Number(body.cash);
+    if (!validDate_(body.date)) {
+      return ContentService.createTextOutput(JSON.stringify({error:'invalid date'}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    if ([total, stock, bond, cash].some(function(v){ return isNaN(v) || v < 0 || v > 1e12; })) {
+      return ContentService.createTextOutput(JSON.stringify({error:'invalid snapshot values'}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    var snapSheet2 = ss.getSheetByName('資產快照歷史');
+    snapSheet2.appendRow([sanitizeCell_(body.date), total, stock, bond, cash]);
+  } else if (body.type === 'cashflowEntry') {
+    // 記一筆收支(即時記帳),驗證類型與金額後寫入收支明細分頁
+    var entryType = String(body.entryType || '');
+    var amount = Number(body.amount);
+    var categoryStr = String(body.category || '未分類').slice(0, 50);
+    var noteStr = String(body.note || '').slice(0, 200);
+    if (!validDate_(body.date)) {
+      return ContentService.createTextOutput(JSON.stringify({error:'invalid date'}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    if (['收入','支出'].indexOf(entryType) === -1) {
+      return ContentService.createTextOutput(JSON.stringify({error:'invalid entryType'}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    if (isNaN(amount) || amount <= 0 || amount > 10000000) {
+      return ContentService.createTextOutput(JSON.stringify({error:'invalid amount'}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    var cfSheet2 = ss.getSheetByName('收支明細');
+    var entryDateStr = String(body.date || '');
+    var monthStr = entryDateStr.slice(0,7); // yyyy-mm,直接算好寫入,不用等公式往下拉
+    cfSheet2.appendRow([
+      sanitizeCell_(entryDateStr), entryType, sanitizeCell_(categoryStr),
+      amount, sanitizeCell_(noteStr), monthStr
+    ]);
+  } else {
+    // 沿用原本現金帳戶登記邏輯:寫入登記紀錄分頁,數字欄位一律轉為 Number 避免公式注入
+    var cashSheet = ss.getSheetByName('登記紀錄');
+    cashSheet.appendRow([
+      sanitizeCell_(body.time),
+      Number(body['國泰世華']) || 0, Number(body['LINEpay']) || 0,
+      Number(body['紙鈔']) || 0, Number(body['中國信託']) || 0,
+      Number(body['LINEBANK']) || 0, Number(body['IBKR']) || 0,
+      Number(body['ETORO']) || 0
+    ]);
+  }
+ 
+  return ContentService.createTextOutput(JSON.stringify({status:'ok'}))
+    .setMimeType(ContentService.MimeType.JSON);
+}`;
+ 
+function escapeHtml(str){
+  if(str===null||str===undefined) return '';
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+ 
+// 基本輸入驗證:代號只允許英數字、點、連字號,長度限制,避免公式注入字元(=+-@開頭)
+function validTicker(t){
+  return /^[A-Za-z0-9.\-]{1,15}$/.test(t) && !/^[=+\-@]/.test(t);
+}
+function validQty(q){
+  const n = Number(q);
+  return !isNaN(n) && n > 0 && n < 1000000;
+}
+function validDate(d){
+  return /^\d{4}-\d{2}-\d{2}$/.test(d);
+}
+ 
+function fmtMoney(n){
+  if(n===null||n===undefined||isNaN(n)) return '--';
+  return n.toLocaleString('zh-TW',{maximumFractionDigits:0});
+}
+function fmtPct(n){
+  if(n===null||n===undefined||isNaN(n)) return '--';
+  return (n*100).toFixed(1)+'%';
+}
+ 
+function updateSubOptions(){
+  const cat = document.getElementById('txCategory').value;
+  const subSel = document.getElementById('txSub');
+  subSel.innerHTML = '';
+  CATEGORY_TREE[cat].forEach(s=>{
+    const opt = document.createElement('option');
+    opt.value = s; opt.textContent = s;
+    subSel.appendChild(opt);
+  });
+}
+ 
+async function submitTx(evt){
+  evt.preventDefault();
+  const statusEl = document.getElementById('txStatus');
+  const dateVal = document.getElementById('txDate').value;
+  const tickerVal = document.getElementById('txTicker').value.trim().toUpperCase();
+  const qtyVal = document.getElementById('txQty').value;
+ 
+  if(!validDate(dateVal)){
+    statusEl.textContent = '交易日期格式不正確。';
+    statusEl.style.color = 'var(--red)'; return false;
+  }
+  if(!validTicker(tickerVal)){
+    statusEl.textContent = '代號只能是英數字、點或連字號(1-15字),且不能以 = + - @ 開頭。';
+    statusEl.style.color = 'var(--red)'; return false;
+  }
+  if(!validQty(qtyVal)){
+    statusEl.textContent = '數量必須是大於 0 的數字。';
+    statusEl.style.color = 'var(--red)'; return false;
+  }
+ 
+  const payload = {
+    type:'transaction',
+    token: SECRET_TOKEN,
+    date: dateVal,
+    ticker: tickerVal,
+    category: document.getElementById('txCategory').value,
+    sub: document.getElementById('txSub').value,
+    qty: qtyVal
+  };
+  if(!SHEET_WEBAPP_URL){
+    statusEl.textContent = '尚未設定 Sheet 網址,請依下方教學部署 Apps Script。';
+    statusEl.style.color = 'var(--red)';
+    return false;
+  }
+  if(!SECRET_TOKEN){
+    statusEl.textContent = '尚未設定安全性權杖(SECRET_TOKEN),請先設定再送出,避免任何人都能寫入你的資料。';
+    statusEl.style.color = 'var(--red)';
+    return false;
+  }
+  try{
+    await fetch(SHEET_WEBAPP_URL, {
+      method:'POST', mode:'no-cors',
+      body: JSON.stringify(payload)
+    });
+    statusEl.textContent = '已送出登記(因跨網域限制無法100%確認寫入成功,建議偶爾回 Sheet 確認)';
+    statusEl.style.color = 'var(--teal)';
+    document.getElementById('txForm').reset();
+    setTimeout(loadAll, 1500);
+  }catch(err){
+    statusEl.textContent = '送出失敗:'+err.message;
+    statusEl.style.color = 'var(--red)';
+  }
+  return false;
+}
+ 
+const SUB_OPTIONS_ALL = ['美股核心','台股核心','主題衛星','區域型','公債','公司債','現金'];
+const CATEGORY_OPTIONS_ALL = ['股票','債券','現金'];
+ 
+function renderTxList(){
+  const body = document.getElementById('txListBody');
+  if(!transactions.length){
+    body.innerHTML = '<tr><td colspan="6" class="chart-empty">尚無交易紀錄,或尚未設定 Sheet 網址。</td></tr>';
+    return;
+  }
+  body.innerHTML = transactions.map(tx=>{
+    const editing = txEditingRow === tx.row;
+    if(!editing){
+      return `<tr>
+        <td>${escapeHtml(tx.date)}</td>
+        <td class="name">${escapeHtml(tx.ticker)}</td>
+        <td class="name">${escapeHtml(tx.category)}</td>
+        <td class="name">${escapeHtml(tx.sub)}</td>
+        <td>${escapeHtml(tx.qty)}</td>
+        <td>
+          <button class="row-btn save" style="background:var(--navy);" onclick="editTxRow(${tx.row})">編輯</button>
+          <button class="row-btn delete" onclick="deleteTx(${tx.row})">刪除</button>
+        </td>
+      </tr>`;
+    } else {
+      const catOpts = CATEGORY_OPTIONS_ALL.map(c=>`<option value="${c}" ${c===tx.category?'selected':''}>${c}</option>`).join('');
+      const subOpts = SUB_OPTIONS_ALL.map(s=>`<option value="${s}" ${s===tx.sub?'selected':''}>${s}</option>`).join('');
+      return `<tr>
+        <td><input class="tx-edit-input" type="date" id="edit-date-${tx.row}" value="${escapeHtml(tx.date)}"></td>
+        <td><input class="tx-edit-input" type="text" id="edit-ticker-${tx.row}" value="${escapeHtml(tx.ticker)}"></td>
+        <td><select class="tx-edit-select" id="edit-category-${tx.row}">${catOpts}</select></td>
+        <td><select class="tx-edit-select" id="edit-sub-${tx.row}">${subOpts}</select></td>
+        <td><input class="tx-edit-input" type="number" step="0.0001" id="edit-qty-${tx.row}" value="${tx.qty}"></td>
+        <td>
+          <button class="row-btn save" onclick="saveTxEdit(${tx.row})">儲存</button>
+          <button class="row-btn cancel" onclick="cancelTxEdit()">取消</button>
+        </td>
+      </tr>`;
+    }
+  }).join('');
+}
+ 
+function editTxRow(row){
+  txEditingRow = row;
+  renderTxList();
+}
+ 
+function cancelTxEdit(){
+  txEditingRow = null;
+  renderTxList();
+}
+ 
+async function saveTxEdit(row){
+  const statusEl = document.getElementById('txListStatus');
+  const dateVal = document.getElementById('edit-date-'+row).value;
+  const tickerVal = document.getElementById('edit-ticker-'+row).value.trim().toUpperCase();
+  const categoryVal = document.getElementById('edit-category-'+row).value;
+  const subVal = document.getElementById('edit-sub-'+row).value;
+  const qtyVal = document.getElementById('edit-qty-'+row).value;
+ 
+  if(!validDate(dateVal)){ statusEl.textContent='交易日期格式不正確。'; statusEl.style.color='var(--red)'; return; }
+  if(!validTicker(tickerVal)){ statusEl.textContent='代號格式不正確(英數字/點/連字號,1-15字,不能以=+-@開頭)。'; statusEl.style.color='var(--red)'; return; }
+  if(!validQty(qtyVal)){ statusEl.textContent='數量必須是大於0的數字。'; statusEl.style.color='var(--red)'; return; }
+  if(!SHEET_WEBAPP_URL || !SECRET_TOKEN){ statusEl.textContent='尚未設定 Sheet 網址或安全性權杖。'; statusEl.style.color='var(--red)'; return; }
+ 
+  const payload = {
+    type:'updateTransaction', token:SECRET_TOKEN, row:row,
+    date:dateVal, ticker:tickerVal, category:categoryVal, sub:subVal, qty:qtyVal
+  };
+  try{
+    await fetch(SHEET_WEBAPP_URL, { method:'POST', mode:'no-cors', body: JSON.stringify(payload) });
+    statusEl.textContent = '已送出修改(跨網域限制無法即時確認,稍後會自動重新整理)。';
+    statusEl.style.color = 'var(--teal)';
+    txEditingRow = null;
+    setTimeout(loadAll, 1500);
+  }catch(err){
+    statusEl.textContent = '送出失敗:'+err.message;
+    statusEl.style.color = 'var(--red)';
+  }
+}
+ 
+async function deleteTx(row){
+  const statusEl = document.getElementById('txListStatus');
+  if(!SHEET_WEBAPP_URL || !SECRET_TOKEN){ statusEl.textContent='尚未設定 Sheet 網址或安全性權杖。'; statusEl.style.color='var(--red)'; return; }
+  if(!confirm('確定要刪除這筆交易紀錄嗎?這個動作無法復原。')) return;
+ 
+  const payload = { type:'deleteTransaction', token:SECRET_TOKEN, row:row };
+  try{
+    await fetch(SHEET_WEBAPP_URL, { method:'POST', mode:'no-cors', body: JSON.stringify(payload) });
+    statusEl.textContent = '已送出刪除(跨網域限制無法即時確認,稍後會自動重新整理)。';
+    statusEl.style.color = 'var(--teal)';
+    setTimeout(loadAll, 1500);
+  }catch(err){
+    statusEl.textContent = '送出失敗:'+err.message;
+    statusEl.style.color = 'var(--red)';
+  }
+}
+ 
+function aggregateBySub(){
+  const agg = {};
+  Object.keys(targets).forEach(s=>agg[s]={value:0,category:null});
+  holdings.forEach(h=>{
+    if(!agg[h.sub]) agg[h.sub] = {value:0,category:h.category};
+    agg[h.sub].value += Number(h.value)||0;
+    agg[h.sub].category = h.category;
+  });
+  agg['現金'] = {value: cashValue, category:'現金'};
+  return agg;
+}
+ 
+let totalAssetValueGlobal = 0;
+ 
+function render(){
+  const agg = aggregateBySub();
+  const totalValue = Object.values(agg).reduce((s,a)=>s+a.value,0);
+  totalAssetValueGlobal = totalValue;
+  const totalCost = holdings.reduce((s,h)=>s+(Number(h.cost)||0),0) ; // 現金無成本概念
+  const totalPnl = holdings.reduce((s,h)=>s+(Number(h.pnl)||0),0);
+  const totalReturn = totalCost>0 ? totalPnl/totalCost : null;
+ 
+  document.getElementById('totalValue').textContent = 'NT$'+fmtMoney(totalValue);
+  document.getElementById('totalCost').textContent = 'NT$'+fmtMoney(totalCost)+'(不含現金)';
+  const pnlEl = document.getElementById('totalPnl');
+  pnlEl.textContent = (totalPnl>=0?'+':'')+'NT$'+fmtMoney(totalPnl);
+  pnlEl.className = 'value ' + (totalPnl>=0?'pos':'neg');
+  const retEl = document.getElementById('totalReturn');
+  retEl.textContent = totalReturn!==null ? fmtPct(totalReturn) : '--';
+  retEl.className = 'value ' + (totalReturn>=0?'pos':'neg');
+ 
+  // 象限
+  const quadGrid = document.getElementById('quadGrid');
+  quadGrid.innerHTML = '';
+  Object.keys(targets).forEach(sub=>{
+    const a = agg[sub] || {value:0};
+    const pct = totalValue>0 ? a.value/totalValue : 0;
+    const tgt = targets[sub];
+    const barPct = Math.min(pct/(Math.max(tgt,pct,0.001)*1.3)*100,100);
+    const targetMarkPct = Math.min(tgt/(Math.max(tgt,pct,0.001)*1.3)*100,100);
+    const diff = pct - tgt;
+    const band = Math.min(0.05, tgt*0.25);
+    let diffClass = 'diff-ok', diffLabel = '容許範圍內';
+    if(diff > band){diffClass='diff-over'; diffLabel='超配 '+fmtPct(diff);}
+    else if(diff < -band){diffClass='diff-under'; diffLabel='低配 '+fmtPct(-diff);}
+    const targetValue = tgt*totalValue;
+ 
+    const cell = document.createElement('div');
+    cell.className = 'quad-cell';
+    cell.innerHTML = `
+      <div class="cat-label">${escapeHtml(a.category||'')}</div>
+      <div class="sub-label">${escapeHtml(sub)}</div>
+      <div class="pct-row"><span>目前 ${fmtPct(pct)}</span><span>目標 <input class="target-input" data-sub="${escapeHtml(sub)}" type="number" step="0.5" value="${(tgt*100).toFixed(1)}">%</span></div>
+      <div class="pct-row" style="color:#9a927c; font-size:11px;"><span>NT$${fmtMoney(a.value)}</span><span>NT$${fmtMoney(targetValue)}</span></div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:${barPct}%"></div>
+        <div class="bar-target-mark" style="left:${targetMarkPct}%"></div>
+      </div>
+      <span class="diff-tag ${diffClass}">${diffLabel}</span>
+    `;
+    quadGrid.appendChild(cell);
+  });
+  document.querySelectorAll('.target-input').forEach(inp=>{
+    inp.addEventListener('change', async (e)=>{
+      const sub = e.target.dataset.sub;
+      const val = parseFloat(e.target.value)/100;
+      if(!isNaN(val)){
+        targets[sub] = val;
+        await saveTargets();
+        render();
+      }
+    });
+  });
+ 
+  // 再平衡表 —— 依《投資金律》5/25 法則:偏離目標超過 5 個百分點,或超過目標值的 25%(取較嚴格者)才需動作
+  // 加碼/減碼金額 = 總資產 × 目標% − 目前金額(標準算法;5/25法則只是用來決定「要不要顯示為需要動作」,不影響金額計算方式)
+  const rebalBody = document.getElementById('rebalBody');
+  rebalBody.innerHTML = '';
+  const actionItems = []; // 收集需要動作的細項,等一下渲染成上方的行動清單
+ 
+  Object.keys(targets).forEach(sub=>{
+    const a = agg[sub] || {value:0};
+    const pct = totalValue>0 ? a.value/totalValue : 0;
+    const tgt = targets[sub];
+    const band = Math.min(0.05, tgt*0.25);
+    const lower = tgt - band, upper = tgt + band;
+    const breached = pct < lower || pct > upper;
+    const targetValue = tgt * totalValue;
+    const diffAmt = targetValue - a.value;
+    const status = breached
+      ? `<span class="action-needed">需要再平衡</span>`
+      : `<span class="action-ok">容許範圍內</span>`;
+    const action = !breached ? '暫不動作'
+      : (diffAmt>0 ? `加碼 NT$${fmtMoney(diffAmt)}` : `減碼 NT$${fmtMoney(-diffAmt)}`);
+    if(breached){
+      actionItems.push({ sub, diffAmt });
+    }
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="name">${escapeHtml(sub)}</td><td>NT$${fmtMoney(a.value)}</td><td>${fmtPct(pct)}</td><td>${fmtPct(tgt)}</td><td>${fmtPct(lower)}~${fmtPct(upper)}</td><td class="name">${status}</td><td class="name">${escapeHtml(action)}</td>`;
+    rebalBody.appendChild(tr);
+  });
+ 
+  // 行動清單:只列出「需要再平衡」的細項,用市值算好的金額直接告訴你要加碼/減碼多少
+  const rebalActionListEl = document.getElementById('rebalActionList');
+  if(!actionItems.length){
+    rebalActionListEl.innerHTML = `<div class="rebal-all-ok">✅ 目前所有細項都在容許範圍內,不需要任何動作。</div>`;
+  } else {
+    actionItems.sort((a,b)=>Math.abs(b.diffAmt)-Math.abs(a.diffAmt)); // 金額大的排前面,優先處理
+    rebalActionListEl.innerHTML = actionItems.map(item=>{
+      const isBuy = item.diffAmt > 0;
+      return `<div class="rebal-action-item ${isBuy?'buy':'sell'}">
+        <span class="ra-name">${isBuy?'🟢 加碼':'🔴 減碼'} ${escapeHtml(item.sub)}</span>
+        <span class="ra-amount">NT$${fmtMoney(Math.abs(item.diffAmt))}</span>
+      </div>`;
+    }).join('');
+  }
+ 
+  // 持股明細
+  const hBody = document.getElementById('holdingsBody');
+  hBody.innerHTML = '';
+  holdings.forEach(h=>{
+    const tr = document.createElement('tr');
+    const retClass = (h.returnPct>=0) ? 'pos':'neg';
+    tr.innerHTML = `<td class="name">${escapeHtml(h.ticker)}</td><td class="name">${escapeHtml(h.sub)}</td><td>${escapeHtml(h.qty)}</td><td>${fmtMoney(h.cost)}</td><td>${fmtMoney(h.price)}</td><td>${fmtMoney(h.value)}</td><td style="color:${h.returnPct>=0?'#3a8f8c':'#b5533f'}">${fmtPct(h.returnPct)}</td>`;
+    hBody.appendChild(tr);
+  });
+}
+ 
+async function saveTargets(){
+  try{ await window.storage.set('rebalance-targets', JSON.stringify(targets)); }catch(e){}
+}
+async function loadTargets(){
+  try{
+    const r = await window.storage.get('rebalance-targets');
+    if(r && r.value) targets = {...DEFAULT_TARGETS, ...JSON.parse(r.value)};
+  }catch(e){ /* 尚無儲存值,使用預設 */ }
+}
+ 
+function renderCashflow(){
+  const summaryEl = document.getElementById('cashflowSummary');
+  const cumEl = document.getElementById('cumulativeChart');
+  const barEl = document.getElementById('netBarChart');
+ 
+  if(!monthlyCashflow.length){
+    summaryEl.innerHTML = '';
+    cumEl.innerHTML = '<div class="chart-empty">尚無資料。請依下方教學把 Money Manager 匯出的收支資料貼進「收支明細」分頁。</div>';
+    barEl.innerHTML = '';
+    return;
+  }
+ 
+  const latest = monthlyCashflow[monthlyCashflow.length-1];
+  summaryEl.innerHTML = `
+    <div class="summary-box"><div class="label">本月收入(${escapeHtml(latest.month)})</div><div class="value small pos">+NT$${fmtMoney(latest.income)}</div></div>
+    <div class="summary-box"><div class="label">本月支出</div><div class="value small neg">-NT$${fmtMoney(latest.expense)}</div></div>
+    <div class="summary-box"><div class="label">本月結餘</div><div class="value small ${latest.net>=0?'pos':'neg'}">${latest.net>=0?'+':''}NT$${fmtMoney(latest.net)}</div></div>
+    <div class="summary-box"><div class="label">累積結餘</div><div class="value ${latest.cumulative>=0?'pos':'neg'}">NT$${fmtMoney(latest.cumulative)}</div></div>
+  `;
+ 
+  // ---- 累積結餘趨勢(折線圖) ----
+  const W = 760, H = 180, padL = 55, padR = 15, padT = 15, padB = 25;
+  const cumVals = monthlyCashflow.map(m=>m.cumulative);
+  const cumMin = Math.min(0, ...cumVals), cumMax = Math.max(0, ...cumVals);
+  const cumRange = (cumMax - cumMin) || 1;
+  const n = monthlyCashflow.length;
+  const xStep = n>1 ? (W-padL-padR)/(n-1) : 0;
+  const yFor = v => padT + (H-padT-padB) * (1 - (v-cumMin)/cumRange);
+  const xFor = i => padL + xStep*i;
+ 
+  let linePoints = monthlyCashflow.map((m,i)=>`${xFor(i)},${yFor(m.cumulative)}`).join(' ');
+  const zeroY = yFor(0);
+  let cumSvg = `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+  cumSvg += `<line x1="${padL}" y1="${zeroY}" x2="${W-padR}" y2="${zeroY}" stroke="#dcd4c0" stroke-width="1"/>`;
+  cumSvg += `<polyline points="${linePoints}" fill="none" stroke="#3a8f8c" stroke-width="2.5"/>`;
+  monthlyCashflow.forEach((m,i)=>{
+    cumSvg += `<circle cx="${xFor(i)}" cy="${yFor(m.cumulative)}" r="3" fill="#1b3a4b"/>`;
+    if(i===0 || i===n-1 || i%Math.ceil(n/8)===0){
+      cumSvg += `<text x="${xFor(i)}" y="${H-6}" class="chart-tooltip-label" text-anchor="middle">${escapeHtml(m.month)}</text>`;
+    }
+  });
+  cumSvg += `<text x="4" y="${yFor(cumMax)+4}" class="chart-tooltip-label">${fmtMoney(cumMax)}</text>`;
+  cumSvg += `<text x="4" y="${yFor(cumMin)+4}" class="chart-tooltip-label">${fmtMoney(cumMin)}</text>`;
+  cumSvg += `</svg>`;
+  cumEl.innerHTML = cumSvg;
+ 
+  // ---- 每月淨結餘(長條圖) ----
+  const netVals = monthlyCashflow.map(m=>m.net);
+  const netMax = Math.max(1, ...netVals.map(Math.abs));
+  const barZeroY = padT + (H-padT-padB)/2;
+  const halfH = (H-padT-padB)/2;
+  const barW = Math.min(28, (W-padL-padR)/n * 0.6);
+  let barSvg = `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+  barSvg += `<line x1="${padL}" y1="${barZeroY}" x2="${W-padR}" y2="${barZeroY}" stroke="#dcd4c0" stroke-width="1"/>`;
+  monthlyCashflow.forEach((m,i)=>{
+    const cx = xFor(i);
+    const h = Math.abs(m.net)/netMax*halfH;
+    const y = m.net>=0 ? barZeroY-h : barZeroY;
+    const color = m.net>=0 ? '#3a8f8c' : '#b5533f';
+    barSvg += `<rect x="${cx-barW/2}" y="${y}" width="${barW}" height="${h}" fill="${color}" rx="2"/>`;
+    if(i===0 || i===n-1 || i%Math.ceil(n/8)===0){
+      barSvg += `<text x="${cx}" y="${H-6}" class="chart-tooltip-label" text-anchor="middle">${escapeHtml(m.month)}</text>`;
+    }
+  });
+  barSvg += `</svg>`;
+  barEl.innerHTML = barSvg;
+}
+ 
+function switchTab(name){
+  document.getElementById('tab-alloc').style.display = (name==='alloc') ? '' : 'none';
+  document.getElementById('tab-finance').style.display = (name==='finance') ? '' : 'none';
+}
+ 
+// 畫一個像飛機儀表板一樣的指針式儀表:紅/黃/綠三色區間 + 指針指向目前數值
+// value/scaleMax 為 0~1+ 的比率(例如 0.92 代表 92%);zones 是 [{to:0.5,color:'red'},{to:0.9,color:'yellow'},{to:999,color:'green'}] 這種累加式的分界
+function drawGaugeSVG(value, scaleMax, zones){
+  const W = 220, H = 140, cx = 110, cy = 120, r = 90;
+  const clampedValue = Math.max(0, Math.min(value, scaleMax));
+  const toAngle = frac => 180 - Math.max(0,Math.min(frac,1))*180; // frac=0→180°(左) frac=1→0°(右)
+  const polar = (angleDeg, radius) => {
+    const rad = angleDeg * Math.PI/180;
+    return { x: cx + radius*Math.cos(rad), y: cy - radius*Math.sin(rad) };
+  };
+ 
+  let svg = `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+ 
+  // 畫紅黃綠三色區間弧線
+  let prevFrac = 0;
+  zones.forEach(zone=>{
+    const zoneFrac = Math.min(zone.to/scaleMax, 1);
+    if(zoneFrac <= prevFrac) return;
+    const startPt = polar(toAngle(prevFrac), r);
+    const endPt = polar(toAngle(zoneFrac), r);
+    svg += `<path d="M${startPt.x.toFixed(1)},${startPt.y.toFixed(1)} A${r},${r} 0 0 1 ${endPt.x.toFixed(1)},${endPt.y.toFixed(1)}" fill="none" stroke="${zone.color}" stroke-width="16" stroke-linecap="butt"/>`;
+    prevFrac = zoneFrac;
+  });
+ 
+  // 指針
+  const needleFrac = clampedValue/scaleMax;
+  const needleAngle = toAngle(needleFrac);
+  const needleTip = polar(needleAngle, r-22);
+  svg += `<line x1="${cx}" y1="${cy}" x2="${needleTip.x.toFixed(1)}" y2="${needleTip.y.toFixed(1)}" stroke="#1b3a4b" stroke-width="4" stroke-linecap="round"/>`;
+  svg += `<circle cx="${cx}" cy="${cy}" r="8" fill="#1b3a4b"/>`;
+ 
+  svg += `</svg>`;
+  return svg;
+}
+ 
+// 儀表通用的紅黃綠分界:0~50%=危險、50~90%=注意、90%以上=安全
+const GAUGE_ZONES = [
+  { to: 0.50, color: 'var(--red)',  status: '🔴 危險', statusColor: 'var(--red)' },
+  { to: 0.90, color: 'var(--gold)', status: '🟡 注意', statusColor: 'var(--gold)' },
+  { to: 999,  color: 'var(--teal)', status: '🟢 安全', statusColor: 'var(--teal)' }
+];
+ 
+function gaugeStatusFor(value){
+  for(const zone of GAUGE_ZONES){
+    if(value <= zone.to) return zone;
+  }
+  return GAUGE_ZONES[GAUGE_ZONES.length-1];
+}
+ 
+function renderGaugeBox(label, value){
+  if(value === null || isNaN(value)){
+    return `<div class="gauge-box">${drawGaugeSVG(0, 1.5, GAUGE_ZONES)}<div class="gauge-value">--</div><div class="gauge-label">${escapeHtml(label)}</div></div>`;
+  }
+  const zone = gaugeStatusFor(value);
+  return `<div class="gauge-box">
+    ${drawGaugeSVG(value, 1.5, GAUGE_ZONES)}
+    <div class="gauge-value">${fmtPct(value)}</div>
+    <div class="gauge-label">${escapeHtml(label)}</div>
+    <div class="gauge-status" style="color:${zone.statusColor}">${zone.status}</div>
+  </div>`;
+}
+ 
+function renderFI(){
+  const fiSummary = document.getElementById('fiSummary');
+  const fiBody = document.getElementById('fiTableBody');
+ 
+  if(!monthlyCashflow.length && assetSnapshots.length < 2){
+    fiSummary.innerHTML = '';
+    document.getElementById('fiGaugeRow').innerHTML = '';
+    fiBody.innerHTML = '<tr><td colspan="3" class="chart-empty">尚無現金流或資產快照資料,無法計算。請先完成現金流設定,或點下方「記錄本月快照」開始累積。</td></tr>';
+    renderNetWorthChart();
+    return;
+  }
+ 
+  // ---- 資產累積斜率:優先用「資產快照歷史」(真實),不足時退回現金流累積結餘(代理估算) ----
+  let slope, slopeSource;
+  if(assetSnapshots.length >= 2){
+    const sn = assetSnapshots.length;
+    const sxs = assetSnapshots.map((_,i)=>i);
+    const sys = assetSnapshots.map(s=>s.total);
+    const sSumX = sxs.reduce((a,b)=>a+b,0);
+    const sSumY = sys.reduce((a,b)=>a+b,0);
+    const sSumXY = sxs.reduce((s,x,i)=>s+x*sys[i],0);
+    const sSumX2 = sxs.reduce((s,x)=>s+x*x,0);
+    const sDenom = (sn*sSumX2 - sSumX*sSumX);
+    slope = sDenom!==0 ? (sn*sSumXY - sSumX*sSumY)/sDenom : 0;
+    slopeSource = '真實(依資產快照)';
+  } else {
+    const n = monthlyCashflow.length;
+    const xs = monthlyCashflow.map((_,i)=>i);
+    const ys = monthlyCashflow.map(m=>m.cumulative);
+    const sumX = xs.reduce((a,b)=>a+b,0);
+    const sumY = ys.reduce((a,b)=>a+b,0);
+    const sumXY = xs.reduce((s,x,i)=>s+x*ys[i],0);
+    const sumX2 = xs.reduce((s,x)=>s+x*x,0);
+    const denom = (n*sumX2 - sumX*sumX);
+    slope = denom!==0 ? (n*sumXY - sumX*sumY)/denom : 0;
+    slopeSource = '代理估算(依現金流,尚無足夠快照)';
+  }
+  const slopeAnnual = slope*12;
+  const slopePctOfAssets = totalAssetValueGlobal>0 ? slopeAnnual/totalAssetValueGlobal : null;
+ 
+  renderNetWorthChart();
+ 
+  // ---- 月均支出 / 月均淨結餘 / 月均收入 ----
+  const cfN = monthlyCashflow.length || 1;
+  const avgExpense = monthlyCashflow.reduce((s,m)=>s+m.expense,0)/cfN;
+  const avgNet = monthlyCashflow.reduce((s,m)=>s+m.net,0)/cfN;
+  const avgIncome = monthlyCashflow.reduce((s,m)=>s+m.income,0)/cfN;
+ 
+  const fireByExpense = (avgExpense*12)/0.04;
+  const fireByNet = (avgNet*12)/0.04;
+ 
+  const ratioByExpense = fireByExpense>0 ? totalAssetValueGlobal/fireByExpense : null;
+  const ratioByNet = fireByNet>0 ? totalAssetValueGlobal/fireByNet : null;
+ 
+  // ---- 所得替代率:資產可提領年金(4%) ÷ 年化收入 ----
+  const annualIncome = avgIncome*12;
+  const sustainableAnnualWithdrawal = totalAssetValueGlobal*0.04;
+  const incomeReplacementRatio = annualIncome>0 ? sustainableAnnualWithdrawal/annualIncome : null;
+ 
+  document.getElementById('fiGaugeRow').innerHTML =
+    renderGaugeBox('財富自由比率(依支出)', ratioByExpense) +
+    renderGaugeBox('所得替代率', incomeReplacementRatio);
+ 
+  fiSummary.innerHTML = `
+    <div class="summary-box"><div class="label">資產累積斜率(每月)· ${escapeHtml(slopeSource)}</div><div class="value small ${slope>=0?'pos':'neg'}">${slope>=0?'+':''}NT$${fmtMoney(slope)}/月</div></div>
+    <div class="summary-box"><div class="label">年化成長速度(相對目前總資產)</div><div class="value small ${slopePctOfAssets>=0?'pos':'neg'}">${slopePctOfAssets!==null?fmtPct(slopePctOfAssets):'--'}/年</div></div>
+    <div class="summary-box"><div class="label">目前總資產</div><div class="value">NT$${fmtMoney(totalAssetValueGlobal)}</div></div>
+  `;
+ 
+  function fiRow(label, expenseVal, netVal, isPct){
+    const fmt = isPct ? (v=> v===null?'--':fmtPct(v)) : (v=> v===null?'--':'NT$'+fmtMoney(v));
+    return `<tr><td class="name">${label}</td><td>${fmt(expenseVal)}</td><td>${fmt(netVal)}</td></tr>`;
+  }
+ 
+  fiBody.innerHTML =
+    fiRow('月均金額(支出/淨結餘)', avgExpense, avgNet, false) +
+    fiRow('年化金額 ×12', avgExpense*12, avgNet*12, false) +
+    fiRow('FIRE 目標資產(÷4%)', fireByExpense, fireByNet, false) +
+    fiRow('財富自由比率(目前總資產÷FIRE目標)', ratioByExpense, ratioByNet, true);
+}
+ 
+ 
+function renderNetWorthChart(){
+  const el = document.getElementById('netWorthChart');
+  if(!el) return;
+  if(assetSnapshots.length < 2){
+    el.innerHTML = `<div class="chart-empty">目前有 ${assetSnapshots.length} 筆快照,至少需要 2 筆才能畫出趨勢線。每月點一次「記錄本月快照」持續累積即可。</div>`;
+    return;
+  }
+  const W = 760, H = 180, padL = 55, padR = 15, padT = 15, padB = 25;
+  const vals = assetSnapshots.map(s=>s.total);
+  const vMin = Math.min(...vals), vMax = Math.max(...vals);
+  const vRange = (vMax - vMin) || 1;
+  const n = assetSnapshots.length;
+  const xStep = n>1 ? (W-padL-padR)/(n-1) : 0;
+  const yFor = v => padT + (H-padT-padB) * (1 - (v-vMin)/vRange);
+  const xFor = i => padL + xStep*i;
+ 
+  let points = assetSnapshots.map((s,i)=>`${xFor(i)},${yFor(s.total)}`).join(' ');
+  let svg = `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+  svg += `<polyline points="${points}" fill="none" stroke="#c99a3c" stroke-width="2.5"/>`;
+  assetSnapshots.forEach((s,i)=>{
+    svg += `<circle cx="${xFor(i)}" cy="${yFor(s.total)}" r="3" fill="#1b3a4b"/>`;
+    if(i===0 || i===n-1 || i%Math.ceil(n/8)===0){
+      svg += `<text x="${xFor(i)}" y="${H-6}" class="chart-tooltip-label" text-anchor="middle">${escapeHtml(s.date)}</text>`;
+    }
+  });
+  svg += `<text x="4" y="${yFor(vMax)+4}" class="chart-tooltip-label">${fmtMoney(vMax)}</text>`;
+  svg += `<text x="4" y="${yFor(vMin)+4}" class="chart-tooltip-label">${fmtMoney(vMin)}</text>`;
+  svg += `</svg>`;
+  el.innerHTML = svg;
+}
+ 
+async function recordSnapshot(){
+  const statusEl = document.getElementById('snapshotStatus');
+  if(!SHEET_WEBAPP_URL || !SECRET_TOKEN){
+    statusEl.textContent = '尚未設定 Sheet 網址或安全性權杖,請先完成交易登記分頁裡的設定教學。';
+    statusEl.style.color = 'var(--red)';
+    return;
+  }
+  const stockValue = holdings.filter(h=>h.category==='股票').reduce((s,h)=>s+(Number(h.value)||0),0);
+  const bondValue = holdings.filter(h=>h.category==='債券').reduce((s,h)=>s+(Number(h.value)||0),0);
+  const today = new Date();
+  const dateStr = today.toISOString().slice(0,10);
+ 
+  if(!confirm(`確定要記錄今天(${dateStr})的資產快照嗎?\n總資產:NT$${fmtMoney(totalAssetValueGlobal)}\n這筆紀錄之後無法從這裡刪除,只能到 Sheet 裡手動刪。`)){
+    return;
+  }
+ 
+  const payload = {
+    type: 'snapshot',
+    token: SECRET_TOKEN,
+    date: dateStr,
+    total: totalAssetValueGlobal,
+    stock: stockValue,
+    bond: bondValue,
+    cash: cashValue
+  };
+  try{
+    await fetch(SHEET_WEBAPP_URL, { method:'POST', mode:'no-cors', body: JSON.stringify(payload) });
+    statusEl.textContent = `已送出 ${dateStr} 的快照(因跨網域限制無法100%確認寫入成功,建議偶爾回 Sheet 確認)。`;
+    statusEl.style.color = 'var(--teal)';
+    setTimeout(loadAll, 1500);
+  }catch(err){
+    statusEl.textContent = '送出失敗:'+err.message;
+    statusEl.style.color = 'var(--red)';
+  }
+}
+ 
+ 
+async function loadAll(){
+  document.getElementById('appsScriptCode').textContent = APPS_SCRIPT_CODE;
+  await loadTargets();
+  const errEl = document.getElementById('fetchErrorBanner');
+  if(errEl) errEl.style.display = 'none';
+ 
+  if(SHEET_WEBAPP_URL){
+    try{
+      const url = SHEET_WEBAPP_URL + '?token=' + encodeURIComponent(SECRET_TOKEN);
+      const res = await fetch(url);
+      const json = await res.json();
+      if(json.error){
+        console.error('Sheet 拒絕存取:', json.error);
+        if(errEl){
+          errEl.style.display = 'flex';
+          errEl.innerHTML = `⚠️ 讀取失敗:${escapeHtml(json.error)}(通常是 token 不正確)<button class="row-btn save" onclick="promptForToken()">重新設定權杖</button>`;
+        }
+      } else {
+        holdings = (json.holdings||[]).map(h=>({
+          ...h, qty:Number(h.qty)||0, cost:Number(h.cost)||0,
+          price:Number(h.price)||0, value:Number(h.value)||0,
+          pnl:Number(h.pnl)||0, returnPct: h.returnPct===''||h.returnPct===undefined? null: Number(h.returnPct)
+        }));
+        cashValue = Number(json.cash)||0;
+        monthlyCashflow = (json.monthlyCashflow||[]).map(m=>({
+          month: m.month, income:Number(m.income)||0, expense:Number(m.expense)||0,
+          net:Number(m.net)||0, cumulative:Number(m.cumulative)||0
+        }));
+        assetSnapshots = (json.assetSnapshots||[]).map(s=>({
+          date: s.date, total:Number(s.total)||0, stock:Number(s.stock)||0,
+          bond:Number(s.bond)||0, cash:Number(s.cash)||0
+        }));
+        transactions = (json.transactions||[]).map(t=>({
+          row: Number(t.row), date: t.date, ticker: t.ticker,
+          category: t.category, sub: t.sub, qty: Number(t.qty)||0
+        }));
+      }
+    }catch(err){
+      console.error('讀取 Sheet 失敗', err);
+      if(errEl){
+        errEl.style.display = 'flex';
+        errEl.innerHTML = `⚠️ 讀取失敗:${escapeHtml(err.message)}(可能是網址錯誤或網路問題)`;
+      }
+    }
+  }
+  render();
+  renderCashflow();
+  renderFI();
+  renderTxList();
+}
+ 
+document.getElementById('txDate').valueAsDate = new Date();
+updateSubOptions();
+document.getElementById('throttleDesc').textContent = throttleDescription(70);
+updateTokenBanner();
+loadAll();
+</script>
+</body>
+</html>
+ 
