@@ -673,7 +673,8 @@ function doGet(e) {
       var txDateStr = (txDate instanceof Date) ? Utilities.formatDate(txDate, Session.getScriptTimeZone(), 'yyyy-MM-dd') : String(txDate);
       transactions.push({
         row: t + 1, // 實際 Sheet 列號(1-indexed,+1因為t從1開始對應第2列)
-        date: txDateStr, ticker: txRow[2], category: txRow[3], sub: txRow[4], qty: txRow[5], price: txRow[6]
+        date: txDateStr, ticker: txRow[2], category: txRow[3], sub: txRow[4], qty: txRow[5], price: txRow[6],
+        currency: txRow[8] || 'TWD'
       });
     }
   }
@@ -911,6 +912,22 @@ function validDate(d){
   return /^\d{4}-\d{2}-\d{2}$/.test(d);
 }
 
+// <input type="date"> 只吃剛好「YYYY-MM-DD」的格式,多了時間或格式不符就會整個顯示空白(即使背後資料還在)。
+// 這個函式盡量把各種可能收到的日期字串/物件,轉成正確格式,轉不出來才回傳空字串。
+function toDateInputValue(d){
+  if(!d) return '';
+  const s = String(d);
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10); // 已經是 yyyy-mm-dd 開頭(可能後面多了時間),直接取前10碼
+  const parsed = new Date(s);
+  if(!isNaN(parsed.getTime())){
+    const y = parsed.getFullYear();
+    const m = String(parsed.getMonth()+1).padStart(2,'0');
+    const dd = String(parsed.getDate()).padStart(2,'0');
+    return `${y}-${m}-${dd}`;
+  }
+  return '';
+}
+
 function fmtMoney(n){
   if(n===null||n===undefined||isNaN(n)) return '--';
   return n.toLocaleString('zh-TW',{maximumFractionDigits:0});
@@ -1030,7 +1047,7 @@ function renderTxList(){
       const subOpts = SUB_OPTIONS_ALL.map(s=>`<option value="${s}" ${s===tx.sub?'selected':''}>${s}</option>`).join('');
       const curOpts = ['TWD','USD','EUR'].map(c=>`<option value="${c}" ${c===(tx.currency||'TWD')?'selected':''}>${c}</option>`).join('');
       return `<tr>
-        <td><input class="tx-edit-input" type="date" id="edit-date-${tx.row}" value="${escapeHtml(tx.date)}"></td>
+        <td><input class="tx-edit-input" type="date" id="edit-date-${tx.row}" value="${escapeHtml(toDateInputValue(tx.date))}"></td>
         <td><input class="tx-edit-input" type="text" id="edit-ticker-${tx.row}" value="${escapeHtml(tx.ticker)}"></td>
         <td><select class="tx-edit-select" id="edit-category-${tx.row}">${catOpts}</select></td>
         <td><select class="tx-edit-select" id="edit-sub-${tx.row}">${subOpts}</select></td>
