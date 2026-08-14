@@ -188,6 +188,16 @@
   }
   .chart-drag-hint{font-size:11px; color:#9a927c; margin-bottom:6px;}
   .chart-svg{touch-action:pan-y;}
+  .currency-toggle{display:flex; gap:6px;}
+  .currency-btn{
+    flex:1; padding:8px; border:1px solid var(--line); border-radius:5px; background:#fdfcf6;
+    font-family:'Space Mono',monospace; font-size:12px; font-weight:700; color:#7a7362; cursor:pointer;
+  }
+  .currency-btn.active{background:var(--navy); border-color:var(--navy); color:#fff;}
+  .currency-tag{
+    display:inline-block; font-size:10px; font-family:'Space Mono',monospace; color:#7a7362;
+    background:#eee6d2; border-radius:3px; padding:1px 5px; margin-left:5px;
+  }
   footer{max-width:920px; margin:20px auto; padding:0 16px; font-size:11px; color:#9a927c; text-align:center;}
 </style>
 </head>
@@ -266,8 +276,9 @@
 
   <div class="card">
     <div class="section-title"><span class="num">03</span> 持股明細</div>
+    <div class="rebal-note" style="margin-bottom:10px;">「現價」是原幣別報價(標籤顯示幣別);「成本」「市值」已自動換算成等值台幣,方便跨幣別加總比較。</div>
     <table>
-      <thead><tr><th>代號</th><th>細項</th><th>股數</th><th>成本</th><th>現價</th><th>市值</th><th>報酬率</th></tr></thead>
+      <thead><tr><th>代號</th><th>細項</th><th>股數</th><th>成本(台幣)</th><th>現價(原幣)</th><th>市值(台幣)</th><th>報酬率</th></tr></thead>
       <tbody id="holdingsBody"></tbody>
     </table>
   </div>
@@ -289,6 +300,14 @@
       </div>
       <div class="field"><label>數量</label><input type="number" id="txQty" step="0.0001" required></div>
       <div class="field"><label>買入價</label><input type="number" id="txPrice" step="0.0001" placeholder="每股/每單位價格" required></div>
+      <div class="field">
+        <label>幣別(選填,預設台幣)</label>
+        <div class="currency-toggle" id="txCurrencyToggle">
+          <button type="button" class="currency-btn active" data-cur="TWD" onclick="setTxCurrency('TWD')">TWD</button>
+          <button type="button" class="currency-btn" data-cur="USD" onclick="setTxCurrency('USD')">USD</button>
+          <button type="button" class="currency-btn" data-cur="EUR" onclick="setTxCurrency('EUR')">EUR</button>
+        </div>
+      </div>
       <div class="field"><button type="submit" class="submit-btn">登記送出</button></div>
     </form>
     <div class="status-msg" id="txStatus"></div>
@@ -299,7 +318,7 @@
         <button class="refresh-btn" onclick="loadAll()">重新整理</button>
       </div>
       <table>
-        <thead><tr><th>交易日期</th><th>代號</th><th>大類</th><th>細項</th><th>數量</th><th>買入價</th><th>操作</th></tr></thead>
+        <thead><tr><th>交易日期</th><th>代號</th><th>大類</th><th>細項</th><th>數量</th><th>買入價</th><th>幣別</th><th>操作</th></tr></thead>
         <tbody id="txListBody"></tbody>
       </table>
       <div class="status-msg" id="txListStatus"></div>
@@ -309,12 +328,12 @@
       <summary>查看 Google Sheet 設定教學、Google 表單設定與 Apps Script 程式碼(第一次使用請展開)</summary>
       <div style="margin-top:10px; line-height:1.8;">
         <b>Step 1</b> — 在你原本的 Google Sheet 裡新增兩個分頁,分頁名稱與欄位必須完全一致:<br><br>
-        <b>分頁「交易登記」</b>,A1:H1 填入標題列(A欄是登記時間戳記,跟Google表單的輸出格式對齊,方便你之後也能用手機表單登記):<br>
-        <code>時間戳記 | 交易日期 | 代號 | 大類 | 細項 | 數量 | 買入價 | 成本</code><br>
-        <b style="color:var(--teal)">G(買入價)、H(成本)這兩欄現在不用貼公式</b>——你在下面「交易登記」表單登記交易時,買入價是你自己輸入的,系統會直接把買入價和算好的成本(數量×買入價)寫進 G、H 兩欄,不再依賴 GOOGLEFINANCE 自動抓歷史股價。<br><br>
+        <b>分頁「交易登記」</b>,A1:I1 填入標題列(A欄是登記時間戳記,跟Google表單的輸出格式對齊,方便你之後也能用手機表單登記):<br>
+        <code>時間戳記 | 交易日期 | 代號 | 大類 | 細項 | 數量 | 買入價 | 成本 | 幣別</code><br>
+        <b style="color:var(--teal)">G(買入價)、H(成本)、I(幣別)這三欄現在不用貼公式</b>——你在下面「交易登記」表單登記交易時,買入價和幣別都是自己輸入/選擇,系統會直接把這些值連同算好的成本(數量×買入價)寫進 G、H、I 三欄,不再依賴 GOOGLEFINANCE 自動抓歷史股價。幣別如果沒選,預設是 TWD。<br><br>
 
-        <b>分頁「資產總表」</b>,A1:I1 標題列:<br>
-        <code>代號 | 大類 | 細項 | 股數 | 總成本 | 現價 | 市值 | 損益 | 報酬率</code><br>
+        <b>分頁「資產總表」</b>,A1:M1 標題列:<br>
+        <code>代號 | 大類 | 細項 | 股數 | 總成本 | 現價 | 市值 | 損益 | 報酬率 | 幣別 | 市值(台幣) | 成本(台幣) | 損益(台幣)</code><br>
         A2:<code>=IFERROR(UNIQUE(FILTER(交易登記!C2:C,交易登記!C2:C&lt;&gt;"")),"")</code><br>
         B2:<code>=IFERROR(INDEX(交易登記!D:D,MATCH(A2,交易登記!C:C,0)),"")</code><br>
         C2:<code>=IFERROR(INDEX(交易登記!E:E,MATCH(A2,交易登記!C:C,0)),"")</code><br>
@@ -322,12 +341,19 @@
         E2:<code>=SUMIF(交易登記!C:C,A2,交易登記!H:H)</code><br>
         F2:<code>=IFERROR(GOOGLEFINANCE(A2,"price"),"")</code><br>
         G2:<code>=D2*F2</code>　H2:<code>=G2-E2</code>　I2:<code>=IFERROR(H2/E2,"")</code><br>
-        (B2:I2 往下拖曳填滿即可,A欄用 UNIQUE 自動展開)<br><br>
+        <b style="color:var(--teal)">J~M 這四欄是新加的,負責幣別換算:</b><br>
+        J2(幣別):<code>=IFERROR(INDEX(交易登記!I:I,MATCH(A2,交易登記!C:C,0)),"TWD")</code><br>
+        K2(市值換算台幣):<code>=IF(J2="TWD",G2,IFERROR(G2*GOOGLEFINANCE("CURRENCY:"&J2&"TWD"),G2))</code><br>
+        L2(成本換算台幣):<code>=IF(J2="TWD",E2,IFERROR(E2*GOOGLEFINANCE("CURRENCY:"&J2&"TWD"),E2))</code><br>
+        M2(損益換算台幣):<code>=K2-L2</code><br>
+        (B2:M2 往下拖曳填滿即可,A欄用 UNIQUE 自動展開;K、L 欄會即時抓 GOOGLEFINANCE 匯率,USD/EUR 都支援,其他幣別照樣式改代碼即可)<br>
+        儀表板的配置象限、再平衡、財富自由指標等所有跨資產加總,都會自動改用 K/L/M(台幣)這幾欄,不會再把美元、歐元、台幣直接加在一起算錯。<br><br>
 
         <b>分頁「收支明細」</b>(手動貼上 Money Manager 匯出的資料),A1:F1 標題列:<br>
         <code>日期 | 類型 | 類別 | 金額 | 備註 | 月份</code><br>
         F2 公式(自動算出年月,往下拉到所有列):<code>=IFERROR(TEXT(A2,"yyyy-mm"),"")</code><br>
         「類型」欄請確保內容統一是「收入」或「支出」兩種文字——Money Manager 匯出的 Excel 通常會有日期/類別/金額/收支類型欄位,把對應欄位複製貼過來時,如果它匯出的是英文(Income/Expense)或其他寫法,記得先用 Sheet 的「尋找及取代」統一改成「收入」「支出」,公式才抓得到。<br>
+        如果你的收支明細實際欄位跟 Money Manager 原生匯出格式一樣(A日期 B資產 C類別 D子類別 E內容 F金額 G收入/支出 H月份),可以在 <b>I 欄加「幣別」</b>手動記錄多幣別消費(例如國外訂閱用 USD 扣款)。目前「月度現金流總表」還是直接加總 F 欄原始金額,沒有自動把外幣消費換算成台幣——這塊如果你需要,之後可以再請我加上跟資產總表一樣的 GOOGLEFINANCE 換算邏輯。<br>
         「財務分析」分頁裡的「記一筆收支」小工具,寫入的就是這個分頁,月份欄會直接算好寫入(不用手動拉公式)。<br><br>
 
         <b>分頁「月度現金流總表」</b>(自動彙總,不用手動維護),A1:E1 標題列:<br>
@@ -567,6 +593,9 @@ function doGet(e) {
   }
 
   // 讀取資產總表(股票/債券持股)
+  // 欄位配置:A代號 B大類 C細項 D股數 E成本(原幣) F現價(原幣) G市值(原幣) H損益(原幣) I報酬率
+  //           J幣別 K市值(台幣) L成本(台幣) M損益(台幣)
+  // 跨幣別彙總(配置象限、再平衡、財富自由指標等)一律用 K/L/M 的台幣換算值,避免美元/歐元/台幣直接相加算錯。
   var assetSheet = ss.getSheetByName('資產總表');
   var holdings = [];
   if (assetSheet) {
@@ -574,10 +603,16 @@ function doGet(e) {
     for (var i = 1; i < data.length; i++) {
       var row = data[i];
       if (!row[0]) continue;
+      var hasTwdCols = row.length > 12; // 有沒有 K/L/M 欄(換算台幣)
       holdings.push({
         ticker: row[0], category: row[1], sub: row[2],
-        qty: row[3], cost: row[4], price: row[5],
-        value: row[6], pnl: row[7], returnPct: row[8]
+        qty: row[3],
+        cost: hasTwdCols ? row[11] : row[4],   // 成本,優先用台幣換算後的 L 欄
+        price: row[5],                          // 現價維持原幣別,方便對照
+        value: hasTwdCols ? row[10] : row[6],   // 市值,優先用台幣換算後的 K 欄
+        pnl: hasTwdCols ? row[12] : row[7],     // 損益,優先用台幣換算後的 M 欄
+        returnPct: row[8],
+        currency: row[9] || 'TWD'
       });
     }
   }
@@ -677,11 +712,18 @@ function findNextEmptyTxRow_(sheet) {
   return lastRow + 1;
 }
 
+var VALID_CURRENCIES_ = ['TWD', 'USD', 'EUR'];
+function normalizeCurrency_(c) {
+  var v = String(c || 'TWD').toUpperCase();
+  return VALID_CURRENCIES_.indexOf(v) === -1 ? 'TWD' : v; // 沒填或填錯就預設台幣,不擋交易
+}
+
 function handleWriteAction_(ss, action, p) {
   if (action === 'addTransaction') {
     var ticker = String(p.ticker || '');
     var qty = Number(p.qty);
     var price = Number(p.price);
+    var currency = normalizeCurrency_(p.currency);
     var err = validateTxInput_(ticker, qty, p.category, p.sub, p.date);
     if (err) return { error: err };
     if (isNaN(price) || price <= 0 || price > 100000000) return { error: 'invalid price' };
@@ -689,9 +731,9 @@ function handleWriteAction_(ss, action, p) {
     if (!sheet) return { error: '找不到分頁「交易登記」,請確認分頁名稱完全一致' };
     var targetRow = findNextEmptyTxRow_(sheet);
     var cost = qty * price;
-    sheet.getRange(targetRow, 1, 1, 8).setValues([[
+    sheet.getRange(targetRow, 1, 1, 9).setValues([[
       new Date(), sanitizeCell_(p.date), sanitizeCell_(ticker),
-      sanitizeCell_(p.category), sanitizeCell_(p.sub), qty, price, cost
+      sanitizeCell_(p.category), sanitizeCell_(p.sub), qty, price, cost, currency
     ]]);
     return { status: 'ok', row: targetRow };
   }
@@ -700,6 +742,7 @@ function handleWriteAction_(ss, action, p) {
     var uTicker = String(p.ticker || '').toUpperCase();
     var uQty = Number(p.qty);
     var uPrice = Number(p.price);
+    var uCurrency = normalizeCurrency_(p.currency);
     var uErr = validateTxInput_(uTicker, uQty, p.category, p.sub, p.date);
     if (uErr) return { error: uErr };
     if (isNaN(uPrice) || uPrice <= 0 || uPrice > 100000000) return { error: 'invalid price' };
@@ -708,9 +751,9 @@ function handleWriteAction_(ss, action, p) {
     var row = Number(p.row);
     if (isNaN(row) || row < 2 || row > txSheetEdit.getLastRow()) return { error: 'invalid row' };
     var uCost = uQty * uPrice;
-    txSheetEdit.getRange(row, 2, 1, 7).setValues([[
+    txSheetEdit.getRange(row, 2, 1, 8).setValues([[
       sanitizeCell_(p.date), sanitizeCell_(uTicker),
-      sanitizeCell_(p.category), sanitizeCell_(p.sub), uQty, uPrice, uCost
+      sanitizeCell_(p.category), sanitizeCell_(p.sub), uQty, uPrice, uCost, uCurrency
     ]]);
     return { status: 'ok' };
   }
@@ -877,6 +920,14 @@ function fmtPct(n){
   return (n*100).toFixed(1)+'%';
 }
 
+let txCurrency = 'TWD';
+function setTxCurrency(cur){
+  txCurrency = cur;
+  document.querySelectorAll('#txCurrencyToggle .currency-btn').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.cur === cur);
+  });
+}
+
 function updateSubOptions(){
   const cat = document.getElementById('txCategory').value;
   const subSel = document.getElementById('txSub');
@@ -920,7 +971,8 @@ async function submitTx(evt){
     category: document.getElementById('txCategory').value,
     sub: document.getElementById('txSub').value,
     qty: qtyVal,
-    price: priceVal
+    price: priceVal,
+    currency: txCurrency
   };
   if(!SHEET_WEBAPP_URL){
     statusEl.textContent = '尚未設定 Sheet 網址,請依下方教學部署 Apps Script。';
@@ -939,6 +991,7 @@ async function submitTx(evt){
     statusEl.textContent = '✅ 已成功寫入 Sheet!';
     statusEl.style.color = 'var(--teal)';
     document.getElementById('txForm').reset();
+    setTxCurrency('TWD');
     setTimeout(loadAll, 800);
   }catch(err){
     statusEl.textContent = '❌ 寫入失敗:'+err.message;
@@ -953,7 +1006,7 @@ const CATEGORY_OPTIONS_ALL = ['股票','債券','現金'];
 function renderTxList(){
   const body = document.getElementById('txListBody');
   if(!transactions.length){
-    body.innerHTML = '<tr><td colspan="7" class="chart-empty">尚無交易紀錄,或尚未設定 Sheet 網址。</td></tr>';
+    body.innerHTML = '<tr><td colspan="8" class="chart-empty">尚無交易紀錄,或尚未設定 Sheet 網址。</td></tr>';
     return;
   }
   body.innerHTML = transactions.map(tx=>{
@@ -966,6 +1019,7 @@ function renderTxList(){
         <td class="name">${escapeHtml(tx.sub)}</td>
         <td>${escapeHtml(tx.qty)}</td>
         <td>${fmtMoney(tx.price)}</td>
+        <td class="name">${escapeHtml(tx.currency || 'TWD')}</td>
         <td>
           <button class="row-btn save" style="background:var(--navy);" onclick="editTxRow(${tx.row})">編輯</button>
           <button class="row-btn delete" onclick="deleteTx(${tx.row})">刪除</button>
@@ -974,6 +1028,7 @@ function renderTxList(){
     } else {
       const catOpts = CATEGORY_OPTIONS_ALL.map(c=>`<option value="${c}" ${c===tx.category?'selected':''}>${c}</option>`).join('');
       const subOpts = SUB_OPTIONS_ALL.map(s=>`<option value="${s}" ${s===tx.sub?'selected':''}>${s}</option>`).join('');
+      const curOpts = ['TWD','USD','EUR'].map(c=>`<option value="${c}" ${c===(tx.currency||'TWD')?'selected':''}>${c}</option>`).join('');
       return `<tr>
         <td><input class="tx-edit-input" type="date" id="edit-date-${tx.row}" value="${escapeHtml(tx.date)}"></td>
         <td><input class="tx-edit-input" type="text" id="edit-ticker-${tx.row}" value="${escapeHtml(tx.ticker)}"></td>
@@ -981,6 +1036,7 @@ function renderTxList(){
         <td><select class="tx-edit-select" id="edit-sub-${tx.row}">${subOpts}</select></td>
         <td><input class="tx-edit-input" type="number" step="0.0001" id="edit-qty-${tx.row}" value="${tx.qty}"></td>
         <td><input class="tx-edit-input" type="number" step="0.0001" id="edit-price-${tx.row}" value="${tx.price}"></td>
+        <td><select class="tx-edit-select" id="edit-currency-${tx.row}">${curOpts}</select></td>
         <td>
           <button class="row-btn save" onclick="saveTxEdit(${tx.row})">儲存</button>
           <button class="row-btn cancel" onclick="cancelTxEdit()">取消</button>
@@ -1008,6 +1064,7 @@ async function saveTxEdit(row){
   const subVal = document.getElementById('edit-sub-'+row).value;
   const qtyVal = document.getElementById('edit-qty-'+row).value;
   const priceVal = document.getElementById('edit-price-'+row).value;
+  const currencyVal = document.getElementById('edit-currency-'+row).value;
 
   if(!validDate(dateVal)){ statusEl.textContent='交易日期格式不正確。'; statusEl.style.color='var(--red)'; return; }
   if(!validTicker(tickerVal)){ statusEl.textContent='代號格式不正確(英數字/點/連字號,1-15字,不能以=+-@開頭)。'; statusEl.style.color='var(--red)'; return; }
@@ -1017,7 +1074,7 @@ async function saveTxEdit(row){
 
   const payload = {
     action:'updateTransaction', row:row,
-    date:dateVal, ticker:tickerVal, category:categoryVal, sub:subVal, qty:qtyVal, price:priceVal
+    date:dateVal, ticker:tickerVal, category:categoryVal, sub:subVal, qty:qtyVal, price:priceVal, currency:currencyVal
   };
   statusEl.textContent = '送出中...';
   statusEl.style.color = 'var(--gold)';
@@ -1174,7 +1231,7 @@ function render(){
   holdings.forEach(h=>{
     const tr = document.createElement('tr');
     const retClass = (h.returnPct>=0) ? 'pos':'neg';
-    tr.innerHTML = `<td class="name">${escapeHtml(h.ticker)}</td><td class="name">${escapeHtml(h.sub)}</td><td>${escapeHtml(h.qty)}</td><td>${fmtMoney(h.cost)}</td><td>${fmtMoney(h.price)}</td><td>${fmtMoney(h.value)}</td><td style="color:${h.returnPct>=0?'#3a8f8c':'#b5533f'}">${fmtPct(h.returnPct)}</td>`;
+    tr.innerHTML = `<td class="name">${escapeHtml(h.ticker)}<span class="currency-tag">${escapeHtml(h.currency||'TWD')}</span></td><td class="name">${escapeHtml(h.sub)}</td><td>${escapeHtml(h.qty)}</td><td>${fmtMoney(h.cost)}</td><td>${fmtMoney(h.price)}</td><td>${fmtMoney(h.value)}</td><td style="color:${h.returnPct>=0?'#3a8f8c':'#b5533f'}">${fmtPct(h.returnPct)}</td>`;
     hBody.appendChild(tr);
   });
 }
@@ -1674,7 +1731,8 @@ async function loadAll(){
         }));
         transactions = (json.transactions||[]).map(t=>({
           row: Number(t.row), date: t.date, ticker: t.ticker,
-          category: t.category, sub: t.sub, qty: Number(t.qty)||0, price: Number(t.price)||0
+          category: t.category, sub: t.sub, qty: Number(t.qty)||0, price: Number(t.price)||0,
+          currency: t.currency || 'TWD'
         }));
       }
     }catch(err){
